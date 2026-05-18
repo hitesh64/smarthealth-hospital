@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHealth - Hospital Management</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <style>
+        /* ==================== CSS VARIABLES & RESET ==================== */
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338ca;
+            --secondary: #10B981;
+            --danger: #EF4444;
+            --dark: #1E293B;
+            --light: #F8FAFC;
+            --gray: #64748B;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+        body { background: #EEF2F6; color: var(--dark); overflow-x: hidden; }
+
+        /* ==================== LAYOUT & SIDEBAR ==================== */
+        .app-container { display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 260px; background: var(--dark); color: white; padding: 20px; display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 100; }
+        .brand { font-size: 1.5rem; font-weight: bold; color: var(--secondary); margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
+        .nav-items { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .nav-item { padding: 12px 15px; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 12px; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); color: var(--secondary); }
+        
+        /* ==================== MAIN CONTENT ==================== */
+        .main-content { 
+            flex: 1; 
+            padding: 20px 30px 40px 30px; 
+            overflow-y: auto; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        
+        /* HORIZONTAL SEARCH BAR */
+        .header { display: flex; justify-content: flex-start; align-items: center; margin-bottom: 30px; gap: 20px; flex-shrink: 0; }
+        .search-bar { display: flex; align-items: center; background: white; padding: 12px 25px; border-radius: 30px; width: 100%; max-width: 600px; box-shadow: var(--shadow); transition: 0.3s; }
+        .search-bar:focus-within { border: 2px solid var(--primary); }
+        .search-bar input { border: none; outline: none; margin-left: 15px; width: 100%; font-size: 1rem; }
+        
+        /* ==================== REUSABLE COMPONENTS ==================== */
+        .section-title { margin-bottom: 20px; color: var(--dark); font-size: 1.5rem; font-weight: bold; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: var(--shadow); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; color: var(--gray); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 1px solid #CBD5E1; border-radius: 8px; outline: none; transition: 0.3s; }
+        .form-group input:focus, .form-group textarea:focus { border-color: var(--primary); }
+        .btn { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; width: 100%; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--secondary); }
+        .btn-success:hover { background: #059669; }
+
+        /* ==================== DOCTORS & CATEGORIES ==================== */
+        .categories { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 30px; scrollbar-width: none; }
+        .category-pill { background: white; padding: 10px 20px; border-radius: 30px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.3s; white-space: nowrap; }
+        .category-pill:hover, .category-pill.active { background: var(--primary); color: white; }
+        .doctors-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .doctor-card { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: var(--shadow); transition: transform 0.3s; }
+        .doctor-card:hover { transform: translateY(-5px); }
+        .doc-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 15px; border: 2px solid #E2E8F0; }
+
+        /* ==================== BLOG SECTION ==================== */
+        .blog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+        .blog-card { position: relative; display: flex; flex-direction: column; padding: 20px; }
+        .blog-card-img-wrap { overflow: hidden; border-radius: 10px; margin-bottom: 15px; position: relative; }
+        .blog-card img { width: 100%; height: 200px; object-fit: cover; transition: transform 0.4s ease; display: block; }
+        .blog-card:hover img { transform: scale(1.08); }
+        .blog-badge { position: absolute; top: 15px; left: 15px; background: var(--primary); color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .blog-card h4 { margin-bottom: 10px; color: var(--dark); font-size: 1.1rem; line-height: 1.4; }
+        .blog-card p { color: var(--gray); font-size: 0.9rem; line-height: 1.6; margin-bottom: 15px; }
+        .blog-card .read-more { margin-top: auto; color: var(--primary); font-weight: bold; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9rem; transition: 0.2s; }
+        .blog-card .read-more:hover { color: var(--primary-hover); gap: 8px; }
+
+        /* ==================== AI SYMPTOM CHECKER ==================== */
+        .ai-glow-card {
+            background: linear-gradient(145deg, #ffffff, #f8faff);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(99, 102, 241, 0.15);
+            max-width: 800px;
+        }
+        .ai-glow-card::before {
+            content: ''; position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, #4F46E5, #ec4899, #8B5CF6);
+            z-index: -1; border-radius: 22px;
+            animation: gradientBorder 3s ease infinite;
+        }
+        @keyframes gradientBorder { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+        .ai-response-box {
+            background: #F8FAFC; border-left: 4px solid #8B5CF6;
+            padding: 20px; border-radius: 8px; margin-top: 20px;
+            font-size: 0.95rem; line-height: 1.6; color: var(--dark);
+            display: none;
+        }
+        .ai-response-box h4 { color: #8B5CF6; margin-bottom: 10px; font-size: 1.1rem; }
+        .ai-response-box ul { margin-left: 20px; margin-top: 10px; }
+
+        /* ==================== MODERN FOOTER ==================== */
+        .modern-footer {
+            background: var(--dark);
+            color: #CBD5E1;
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: auto;
+            margin-bottom: 0; 
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            flex-shrink: 0;
+        }
+        .modern-footer::after {
+            content: ''; position: absolute; top: 0; right: 0; width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(79,70,229,0.15) 0%, transparent 70%);
+            border-radius: 50%; pointer-events: none;
+        }
+        .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; margin-bottom: 30px; }
+        .footer-brand h2 { color: white; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .footer-brand p { font-size: 0.9rem; line-height: 1.6; }
+        .footer-links h4, .footer-contact h4 { color: white; margin-bottom: 20px; font-size: 1.1rem; position: relative; padding-bottom: 8px; }
+        .footer-links h4::after, .footer-contact h4::after { content: ''; position: absolute; left: 0; bottom: 0; width: 40px; height: 3px; background: var(--primary); border-radius: 2px; }
+        .footer-links ul { list-style: none; }
+        .footer-links li { margin-bottom: 12px; }
+        .footer-links a { color: #CBD5E1; text-decoration: none; transition: 0.3s; display: inline-flex; align-items: center; gap: 8px; }
+        .footer-links a:hover { color: var(--secondary); transform: translateX(5px); }
+        .footer-contact p { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 0.9rem; }
+        .social-icons { display: flex; gap: 15px; margin-top: 20px; }
+        .social-icons a {
+            width: 35px; height: 35px; border-radius: 50%; background: rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center; color: white;
+            text-decoration: none; transition: 0.3s;
+        }
+        .social-icons a:hover { background: var(--primary); transform: translateY(-3px); }
+        .footer-bottom { text-align: center; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem; }
+
+        /* ==================== MODALS ==================== */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 90%; max-width: 500px; border-radius: 15px; padding: 25px; animation: slideUp 0.3s ease; max-height: 90vh; overflow-y: auto; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .close-btn { cursor: pointer; font-size: 1.5rem; color: var(--gray); }
+        
+        .slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .slot-btn { padding: 8px; border: 1px solid var(--primary); background: white; color: var(--primary); border-radius: 6px; cursor: pointer; }
+        .slot-btn.selected { background: var(--primary); color: white; }
+
+        /* RESPONSIVE */
+        .menu-toggle { display: none; font-size: 1.5rem; cursor: pointer; }
+        @media (max-width: 768px) {
+            .sidebar { 
+                position: absolute; 
+                transform: translateX(-100%); 
+                height: 100%; 
+                z-index: 1000; 
+                overflow-y: auto; 
+                padding-bottom: 40px; 
+            }
+            .sidebar.active { 
+                transform: translateX(0); 
+                box-shadow: 4px 0 15px rgba(0,0,0,0.2); 
+            }
+            .menu-toggle { display: block; }
+        }
+        
+        /* ==================== SEARCH SUGGESTIONS ==================== */
+        .search-container { position: relative; width: 100%; max-width: 600px; }
+        .search-bar { max-width: none; }
+        
+        .suggestions-box {
+            position: absolute; top: 100%; left: 0; right: 0; background: white;
+            border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+            margin-top: 8px; z-index: 1000; max-height: 300px; overflow-y: auto;
+            display: none; border: 1px solid #E2E8F0;
+        }
+        .suggestion-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #F1F5F9; display: flex; align-items: center; gap: 15px; transition: 0.2s; }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: #F8FAFC; border-left: 4px solid var(--primary); }
+        .suggestion-icon { width: 35px; height: 35px; border-radius: 50%; background: #EEF2F6; color: var(--primary); display: flex; align-items: center; justify-content: center; }
+        .suggestion-text { font-weight: 500; color: var(--dark); }
+        .suggestion-sub { font-size: 0.8rem; color: var(--gray); margin-top: 2px; }
+        .highlight { color: var(--primary); font-weight: bold; }
+        
+        /* SIDEBAR USER INFO */
+        .sidebar-user { display: flex; align-items: center; gap: 12px; padding: 15px; margin-bottom: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-user img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--secondary); background: white; }
+        .sidebar-user-info { display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-user-name { font-weight: bold; font-size: 0.95rem; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: white; }
+        .sidebar-user-role { font-size: 0.75rem; color: #94A3B8; margin-top: 2px; }
+
+        /* GOOGLE LOGIN DIVIDER */
+        .auth-divider {
+            display: flex; align-items: center; margin: 20px 0;
+        }
+        .auth-divider .line { flex: 1; height: 1px; background: #e2e8f0; }
+        .auth-divider .text { padding: 0 10px; color: var(--gray); font-size: 0.85rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="modal" id="authModal" style="display: flex;">
+    <div class="modal-content" style="max-width: 400px;">
+        <h2 id="authTitle" style="text-align: center; margin-bottom: 20px;">Login</h2>
+        
+        <div class="form-group" id="regNameGroup" style="display: none;">
+            <label>Full Name</label>
+            <input type="text" id="authName" placeholder="Enter full name">
+        </div>
+        <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="authEmail" placeholder="user@example.com">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="authPassword" placeholder="Enter password">
+        </div>
+        <p id="authError" style="color: var(--danger); font-size: 0.9rem; margin-bottom: 10px; display: none;"></p>
+        
+        <button class="btn" id="authBtn" onclick="handleAuth()">Login</button>
+        
+        <p style="text-align: center; margin-top: 15px; font-size: 0.9rem; cursor: pointer; color: var(--primary);" onclick="toggleAuthMode()">
+            <span id="authSwitchText">Don't have an account? Register here.</span>
+        </p>
+
+        <div class="auth-divider">
+            <div class="line"></div>
+            <div class="text">OR</div>
+            <div class="line"></div>
+        </div>
+
+        <div id="g_id_onload"
+            data-client_id="52130415784-a1iauelod8o6c3e660tlt41uilvlr8a1.apps.googleusercontent.com"
+            data-context="signin"
+            data-ux_mode="popup"
+            data-callback="handleGoogleLogin"
+            data-auto_prompt="false">
+        </div>
+        
+        <div class="g_id_signin"
+            data-type="standard"
+            data-shape="rectangular"
+            data-theme="outline"
+            data-text="signin_with"
+            data-size="large"
+            data-logo_alignment="left"
+            style="display: flex; justify-content: center; width: 100%;">
+        </div>
+        </div>
+</div>
+
+<div class="app-container">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand"><i class="fas fa-heartbeat"></i> SmartHealth</div>
+        
+       <div class="sidebar-user" id="sidebarUser" style="display: none;">
+    <img id="sidebarUserImg" src="" alt="User" referrerpolicy="no-referrer" onerror="this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent(document.getElementById('sidebarUserName').innerText) + '&background=10B981&color=fff&rounded=true&bold=true'">
+    <div class="sidebar-user-info">
+        <div class="sidebar-user-name" id="sidebarUserName">User</div>
+        <div class="sidebar-user-role">Patient</div>
+    </div>
+</div>
+        <div class="nav-items">
+            <div class="nav-item active" onclick="switchView('home')"><i class="fas fa-home"></i> Dashboard</div>
+            
+            <div class="nav-item" onclick="switchView('ai-checker')" style="background: linear-gradient(45deg, #8B5CF6, #4F46E5); color: white; font-weight: bold; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);">
+                <i class="fas fa-robot"></i> AI Symptom Check
+            </div>
+
+            <div class="nav-item" onclick="switchView('profile')"><i class="fas fa-user"></i> My Profile</div>
+            <div class="nav-item" onclick="switchView('bookings')"><i class="fas fa-calendar-check"></i> Bookings</div>
+            <div class="nav-item" onclick="switchView('blog')"><i class="fas fa-blog"></i> Health Blog</div>
+            <div class="nav-item" onclick="switchView('ambulance')" style="background: rgba(239, 68, 68, 0.1); color: #FCA5A5;"><i class="fas fa-ambulance"></i> Book Ambulance</div>
+            <div class="nav-item" onclick="switchView('admin.html')">
+                <i class="fas fa-user-shield"></i> Admin Panel
+            </div>
+        </div>
+        <div class="nav-item" style="margin-top: auto; color: #EF4444;" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <i class="fas fa-bars menu-toggle" onclick="toggleSidebar()"></i>
+            
+            <div class="search-container" id="searchContainer">
+                <div class="search-bar">
+                    <i class="fas fa-search" style="color: var(--gray);"></i>
+                    <input type="text" id="searchInput" placeholder="Search doctors or specialties..." oninput="handleSearchInput()" autocomplete="off">
+                </div>
+                <div id="searchSuggestions" class="suggestions-box"></div>
+            </div>
+        </div>
+
+        <div id="view-containers" style="margin-bottom: 30px; flex-shrink: 0;">
+            
+            <div id="home-view">
+                <h3 class="section-title">Specialities</h3>
+                <div class="categories" id="categories-container">
+                    <div class="category-pill active" onclick="filterCategory('All', this)">All</div>
+                    <div class="category-pill" onclick="filterCategory('Cardiology', this)">Heart</div>
+                    <div class="category-pill" onclick="filterCategory('Dermatology', this)">Skin</div>
+                    <div class="category-pill" onclick="filterCategory('Dentistry', this)">Teeth</div>
+                    <div class="category-pill" onclick="filterCategory('Oncology', this)">Cancer</div>
+                </div>
+
+                <h3 class="section-title">Available Doctors</h3>
+                <div class="doctors-grid" id="doctors-container">
+                </div>
+            </div>
+
+            <div id="ai-checker-view" style="display: none;">
+                <h3 class="section-title"><i class="fas fa-robot" style="color:#8B5CF6;"></i> AI Symptom Analyzer</h3>
+                <div class="card ai-glow-card">
+                    <h4 style="margin-bottom: 10px; color: var(--dark);">How are you feeling today?</h4>
+                    <p style="color: var(--gray); margin-bottom: 20px; font-size: 0.95rem;">
+                        Describe your symptoms in detail. Our advanced AI will analyze your condition, suggest immediate home care, and guide you to the right medical specialist. 
+                        <br><small style="color: var(--danger);">*Note: This is an AI tool and does not replace professional medical diagnosis.</small>
+                    </p>
+                    
+                    <div class="form-group">
+                        <textarea id="ai-input" rows="5" placeholder="Example: I've had a severe headache, mild fever, and nausea since yesterday morning..."></textarea>
+                    </div>
+                    
+                    <button class="btn" style="background: linear-gradient(45deg, #8B5CF6, #4F46E5); font-size: 1.1rem; padding: 15px;" onclick="analyzeSymptoms()">
+                        <i class="fas fa-magic"></i> Analyze Symptoms
+                    </button>
+
+                    <div id="ai-loading" style="display:none; text-align:center; margin-top:20px; color: #8B5CF6; font-weight:bold;">
+                        <i class="fas fa-circle-notch fa-spin fa-2x"></i>
+                        <p style="margin-top: 10px;">AI is analyzing your symptoms...</p>
+                    </div>
+
+                    <div id="ai-result" class="ai-response-box"></div>
+                </div>
+            </div>
+
+            <div id="profile-view" style="display: none;">
+                <h3 class="section-title">My Profile</h3>
+                <div class="card" style="max-width: 600px;">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="profName">
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="profEmail" readonly style="background: #F1F5F9;">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="profPhone">
+                    </div>
+                    <div style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Age</label>
+                            <input type="number" id="profAge">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Blood Group</label>
+                            <select id="profBlood">
+                                <option>A+</option><option>B+</option><option>O+</option><option>AB+</option>
+                                <option>A-</option><option>B-</option><option>O-</option><option>AB-</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="profAddress" rows="3"></textarea>
+                    </div>
+                    <button class="btn btn-success" onclick="saveProfile()">Save Profile Details</button>
+                </div>
+            </div>
+
+            <div id="bookings-view" style="display: none;">
+                <h3 class="section-title">My Appointment History</h3>
+                <div id="bookings-list"></div>
+            </div>
+
+            <div id="blog-view" style="display: none;">
+                <h3 class="section-title">Health Blog & Hospital Services</h3>
+                <p style="color: var(--gray); margin-bottom: 25px;">Stay updated with our latest medical facilities, wellness tips, and healthcare advancements.</p>
+                
+                <div class="blog-grid">
+                    <div class="card blog-card">
+                        <div class="blog-badge" style="background: var(--danger);">Facility</div>
+                        <div class="blog-card-img-wrap"><img src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=500" alt="Cardiology"></div>
+                        <h4>Advanced Cardiology Center</h4>
+                        <p>Our state-of-the-art cardiology wing provides 24/7 ECG, Angiography, and minimally invasive heart bypass surgeries.</p>
+
+                    </div>
+                    <div class="card blog-card">
+                        <div class="blog-badge" style="background: var(--secondary);">Diagnostics</div>
+                        <div class="blog-card-img-wrap"><img src="https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=500" alt="Lab"></div>
+                        <h4>24x7 AI-Integrated Pathology Lab</h4>
+                        <p>Experience ultra-fast, accurate diagnostics with our newly upgraded pathology labs. We offer MRI, CT Scans, and comprehensive blood panels.</p>
+
+                    </div>
+                    <div class="card blog-card">
+                        <div class="blog-badge" style="background: var(--primary);">Wellness</div>
+                        <div class="blog-card-img-wrap"><img src="https://images.unsplash.com/photo-1581594693702-fbdc51b2763b?w=500" alt="Healthy Diet"></div>
+                        <h4>Nutrition & Diet: Preventing Modern Diseases</h4>
+                        <p>A balanced diet is your first line of defense against lifestyle diseases like Type-2 Diabetes and Hypertension.</p>
+                       
+                    </div>
+                </div>
+            </div>
+
+            <div id="ambulance-view" style="display: none;">
+                <h3 class="section-title">Book Emergency Ambulance</h3>
+                <div class="card" style="max-width: 600px; border-left: 5px solid var(--danger);">
+                    <p style="color: var(--danger); margin-bottom: 20px; font-weight: bold;">
+                        <i class="fas fa-exclamation-triangle"></i> In case of severe emergency, fill the details below. We will dispatch the nearest ambulance immediately.
+                    </p>
+                    <div class="form-group">
+                        <label>Patient Name</label>
+                        <input type="text" id="ambName" placeholder="Enter patient name">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Number (Active)</label>
+                        <input type="tel" id="ambPhone" placeholder="Enter mobile number">
+                    </div>
+                    <div class="form-group">
+                        <label>Pickup Location / Exact Address</label>
+                        <textarea id="ambAddress" rows="3" placeholder="Enter exact location..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Type of Emergency</label>
+                        <select id="ambType">
+                            <option>Heart Attack / Stroke</option>
+                            <option>Accident / Trauma</option>
+                            <option>Pregnancy</option>
+                            <option>General Emergency</option>
+                        </select>
+                    </div>
+                    <button class="btn" style="background: var(--danger);" onclick="bookAmbulance()">Confirm Ambulance Booking</button>
+                </div>
+            </div>
+            
+        </div> <footer class="modern-footer">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <h2><i class="fas fa-heartbeat" style="color: var(--secondary);"></i> SmartHealth</h2>
+                    <p>Pioneering the future of healthcare with AI-driven diagnostics, seamless hospital management, and emergency response systems.</p>
+                    
+                    <div class="social-icons">
+                        <a href="#"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+                
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#" onclick="switchView('home')"><i class="fas fa-chevron-right" style="font-size:0.7rem;"></i> Find Doctors</a></li>
+                        <li><a href="#" onclick="switchView('ai-checker')"><i class="fas fa-chevron-right" style="font-size:0.7rem;"></i> AI Symptom Check</a></li>
+                        <li><a href="#" onclick="switchView('ambulance')"><i class="fas fa-chevron-right" style="font-size:0.7rem;"></i> Emergency Ambulance</a></li>
+                        <li><a href="#" onclick="switchView('blog')"><i class="fas fa-chevron-right" style="font-size:0.7rem;"></i> Health Blog</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-contact">
+                    <h4>Contact Support</h4>
+                    <p><i class="fas fa-phone-alt" style="color: var(--secondary);"></i> +91 1800-123-4567</p>
+                    <p><i class="fas fa-envelope" style="color: var(--secondary);"></i> support@smarthealth.com</p>
+                    <p><i class="fas fa-map-marker-alt" style="color: var(--secondary);"></i> 123 Health Avenue, Medical City, 40001</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; SmartHealth  | Crafted with <i class="fas fa-heart" style="color:var(--danger);"></i> for Healthcare.</p>
+            </div>
+        </footer>
+
+    </main>
+</div>
+
+<div class="modal" id="bookingModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalDocName">Book Appointment</h3>
+            <i class="fas fa-times close-btn" onclick="closeModal()"></i>
+        </div>
+        
+        <div style="max-height: 50vh; overflow-y: auto; padding-right: 10px; margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: var(--primary);">Patient Details</h4>
+            <div class="form-group"><label>Name</label><input type="text" id="bookPatName"></div>
+           <div class="form-group"><label>Email</label><input type="email" id="bookPatEmail"></div>
+            <div class="form-group"><label>Phone</label><input type="tel" id="bookPatPhone"></div>
+            <div class="form-group"><label>Address</label><input type="text" id="bookPatAddress"></div>
+            
+            <h4 style="margin-bottom: 10px; margin-top: 20px; color: var(--primary);">Schedule</h4>
+            <div class="form-group"><label>Select Date</label><input type="date" id="bookDate"></div>
+            <div class="form-group">
+                <label>Select Time Slot</label>
+                <div class="slot-grid" id="timeSlots">
+                    <button class="slot-btn" onclick="selectSlot(this, '09:00 AM')">09:00 AM</button>
+                    <button class="slot-btn" onclick="selectSlot(this, '11:30 AM')">11:30 AM</button>
+                    <button class="slot-btn" onclick="selectSlot(this, '02:00 PM')">02:00 PM</button>
+                    <button class="slot-btn" onclick="selectSlot(this, '04:30 PM')">04:30 PM</button>
+                    <button class="slot-btn" onclick="selectSlot(this, '06:00 PM')">06:00 PM</button>
+                </div>
+            </div>
+        </div>
+        <button class="btn" onclick="confirmBooking()">Confirm & Pay at Hospital</button>
+    </div>
+</div>
+
+<script>
+    // --- 1. AUTHENTICATION & USER DATA LOGIC ---
+    let isLoginMode = true;
+    let currentUser = JSON.parse(localStorage.getItem('smartHealthUser')) || null;
+    let registeredUsers = JSON.parse(localStorage.getItem('smartHealthDB')) || [];
+    let doctors = [];
+    let selectedDoctor=null;
+
+function openBooking(id){
+
+selectedDoctor=
+doctors.find(
+d=>d.id==id
+);
+
+document.getElementById(
+"modalDocName"
+).innerText=
+selectedDoctor.name;
+
+document.getElementById(
+"bookingModal"
+).style.display="flex";
+
+}
+
+    window.onload = () => {
+        if (!currentUser) {
+            document.getElementById('authModal').style.display = 'flex';
+        } else {
+            document.getElementById('authModal').style.display = 'none';
+            loadProfileData();
+            updateSidebarUserInfo();
+        }
+        
+fetch("getDoctors.php")
+      .then(res=>res.json())
+      .then(data=>{
+          doctors=data.map(d=>({
+              id:d.id,
+              name:d.doctor_name,
+              spec:d.specialization, // <-- Ise 'spec' kar diya hai
+              img:d.image
+          }));
+          renderDoctors(doctors);
+      });
+    };
+
+    function toggleAuthMode() {
+        isLoginMode = !isLoginMode;
+        document.getElementById('authTitle').innerText = isLoginMode ? 'Login' : 'Register';
+        document.getElementById('regNameGroup').style.display = isLoginMode ? 'none' : 'block';
+        document.getElementById('authBtn').innerText = isLoginMode ? 'Login' : 'Register';
+        document.getElementById('authSwitchText').innerText = isLoginMode ? "Don't have an account? Register here." : "Already have an account? Login here.";
+        document.getElementById('authError').style.display = 'none';
+    }
+
+ function handleAuth(){
+
+const email=document.getElementById("authEmail").value;
+const password=document.getElementById("authPassword").value;
+const name=document.getElementById("authName").value;
+
+let file=isLoginMode ? "login.php":"register.php";
+
+fetch(file, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: `name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
+        })
+
+.then(response=>response.text())
+
+.then(data=>{
+
+try{
+
+let res=JSON.parse(data);
+
+if(res.status=="success"){
+
+let userData={
+
+name:res.name,
+email:res.email,
+picture:"https://ui-avatars.com/api/?name="+
+encodeURIComponent(res.name)
+
+};
+
+localStorage.setItem(
+"smartHealthUser",
+JSON.stringify(userData)
+);
+
+let users=
+JSON.parse(
+localStorage.getItem("smartHealthDB")
+) || [];
+
+let exists=
+users.find(
+u=>u.email===res.email
+);
+
+if(!exists){
+
+users.push({
+
+name:res.name,
+email:res.email,
+password:password,
+phone:"",
+age:"",
+blood:"A+",
+address:"",
+picture:"https://ui-avatars.com/api/?name="+
+encodeURIComponent(res.name)
+
+});
+
+localStorage.setItem(
+"smartHealthDB",
+JSON.stringify(users)
+);
+
+}
+
+currentUser=userData;
+
+document.getElementById(
+"authModal"
+).style.display="none";
+
+loadProfileData();
+
+updateSidebarUserInfo();
+
+alert("Login Success");
+
+}
+
+}catch(e){
+
+alert(data);
+
+}
+
+})
+
+.catch(error=>{
+
+console.log(error);
+
+alert("Server Error");
+
+});
+
+}// --- GOOGLE SIGN IN LOGIC (REAL-TIME DB SYNC) ---
+    function handleGoogleLogin(response) {
+        // Decode the Google JWT Token
+        const responsePayload = decodeJwtResponse(response.credential);
+        
+        const googleEmail = responsePayload.email;
+        const googleName = responsePayload.name;
+        const googlePicture = responsePayload.picture;
+
+        // 1. NAYA CODE: phpMyAdmin database mein save karne ke liye PHP ko trigger karein
+        let formData = new FormData();
+        formData.append("name", googleName);
+        formData.append("email", googleEmail);
+
+        fetch("saveGoogleUser.php", {
+            method: "POST",
+            body: formData
+        })
+        .then(res => res.text())
+        .then(dbMessage => {
+            console.log("DB Sync Status:", dbMessage); // Verification ke liye background console log
+
+            // 2. LocalStorage state backup session maintain rakhne ke liye
+            let user = registeredUsers.find(u => u.email === googleEmail);
+            
+            if (!user) {
+                user = { 
+                    name: googleName, 
+                    email: googleEmail, 
+                    password: 'google_sso_user_token', 
+                    phone: '', 
+                    age: '', 
+                    blood: 'A+', 
+                    address: '',
+                    picture: googlePicture 
+                };
+                registeredUsers.push(user);
+                localStorage.setItem('smartHealthDB', JSON.stringify(registeredUsers));
+            } else {
+                user.picture = googlePicture;
+                let index = registeredUsers.findIndex(u => u.email === googleEmail);
+                registeredUsers[index] = user;
+                localStorage.setItem('smartHealthDB', JSON.stringify(registeredUsers));
+            }
+            
+            // Session active karke login karwayein
+            loginUser(user);
+        })
+        .catch(err => {
+            console.error("DB Connection Error:", err);
+            // Connection fail hone par bhi frontend fallback safe login karwa dega
+            loginUser({ name: googleName, email: googleEmail, picture: googlePicture });
+        });
+    }
+    function decodeJwtResponse(token) {
+        let base64Url = token.split('.')[1];
+        let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    }
+    // -----------------------------
+
+    function loginUser(user) {
+        currentUser = user;
+        localStorage.setItem('smartHealthUser', JSON.stringify(user));
+        document.getElementById('authModal').style.display = 'none';
+        loadProfileData();
+        updateSidebarUserInfo();
+        alert(`Welcome, ${user.name}!`);
+    }
+
+    function logout() {
+        currentUser = null;
+        localStorage.removeItem('smartHealthUser');
+        window.location.reload(); 
+    }
+
+    // --- 2. PROFILE SECTION LOGIC ---
+    function loadProfileData() {
+        if (!currentUser) return;
+        document.getElementById('profName').value = currentUser.name || '';
+        document.getElementById('profEmail').value = currentUser.email || '';
+        document.getElementById('profPhone').value = currentUser.phone || '';
+        document.getElementById('profAge').value = currentUser.age || '';
+        document.getElementById('profBlood').value = currentUser.blood || 'A+';
+        document.getElementById('profAddress').value = currentUser.address || '';
+    }
+
+    function saveProfile() {
+        currentUser.name = document.getElementById('profName').value;
+        currentUser.phone = document.getElementById('profPhone').value;
+        currentUser.age = document.getElementById('profAge').value;
+        currentUser.blood = document.getElementById('profBlood').value;
+        currentUser.address = document.getElementById('profAddress').value;
+        
+        let index = registeredUsers.findIndex(u => u.email === currentUser.email);
+        if(index !== -1) registeredUsers[index] = currentUser;
+        
+        localStorage.setItem('smartHealthDB', JSON.stringify(registeredUsers));
+        localStorage.setItem('smartHealthUser', JSON.stringify(currentUser));
+        updateSidebarUserInfo();
+        alert("Profile details saved successfully!");
+    }
+
+    // --- 3. UI VIEW SWITCHING ---
+    function switchView(view) {
+        if (view === 'admin.html') {
+            window.location.href = 'admin.html';
+            return; 
+        }
+
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        if(event && event.currentTarget && event.currentTarget.classList) {
+            event.currentTarget.classList.add('active');
+        }
+        
+        // Hide all views first
+        document.getElementById('home-view').style.display = 'none';
+        document.getElementById('ai-checker-view').style.display = 'none';
+        document.getElementById('profile-view').style.display = 'none';
+        document.getElementById('bookings-view').style.display = 'none';
+        document.getElementById('blog-view').style.display = 'none';
+        document.getElementById('ambulance-view').style.display = 'none';
+        
+        // Show specific view
+        if(document.getElementById(`${view}-view`)) {
+            document.getElementById(`${view}-view`).style.display = 'block';
+        }
+        
+        if (view === 'bookings') renderBookings();
+        if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
+        
+        // Scroll to top
+        document.querySelector('.main-content').scrollTo(0, 0);
+    }
+    
+    function updateSidebarUserInfo() {
+        if (currentUser) {
+            document.getElementById('sidebarUser').style.display = 'flex';
+            document.getElementById('sidebarUserName').innerText = currentUser.name || 'User';
+            
+            // USE GOOGLE PICTURE IF AVAILABLE, OTHERWISE USE AVATAR API
+            if(currentUser.picture) {
+                document.getElementById('sidebarUserImg').src = currentUser.picture;
+            } else {
+                document.getElementById('sidebarUserImg').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=10B981&color=fff&rounded=true&bold=true`;
+            }
+        } else {
+            document.getElementById('sidebarUser').style.display = 'none';
+        }
+    }
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); }
+
+    // --- AI SYMPTOM CHECKER LOGIC ---
+    async function analyzeSymptoms() {
+        const input = document.getElementById('ai-input').value.trim();
+        const resultBox = document.getElementById('ai-result');
+        const loader = document.getElementById('ai-loading');
+        
+        if(!input) {
+            alert("Please describe your symptoms first!");
+            return;
+        }
+
+        resultBox.style.display = 'none';
+        loader.style.display = 'block';
+
+        const API_KEY = "AIzaSyDmQtF9OSzO3SMVO6MOjzMA3LjxSe8OARQ"; 
+        
+        const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`;
+
+        const prompt = `You are a helpful, professional medical AI assistant for an app called SmartHealth. A user describes their symptoms: "${input}". 
+        Please provide a structured, cautious preliminary analysis. 
+        Format your response purely in HTML format (using <h4>, <p>, <ul>, <li>, <strong>) without markdown backticks. 
+        Structure it strictly as: 
+        1. <h4>Preliminary Assessment</h4> 
+        2. <h4>Suggested Immediate Steps (Home Care)</h4> 
+        3. <h4>Recommended Specialist</h4>
+        Always end with a strong medical disclaimer that they should consult a real doctor.`;
+
+        try {
+            const response = await fetch(URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const data = await response.json();
+            
+            if(!response.ok) {
+                console.error("API Error Details:", data);
+                throw new Error(data.error?.message || "Failed to connect to AI server");
+            }
+            
+            if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+                throw new Error("No response generated. The AI might have blocked the input due to safety filters.");
+            }
+
+            let htmlContent = data.candidates[0].content.parts[0].text;
+            htmlContent = htmlContent.replace(/```html/g, '').replace(/```/g, '');
+            
+            resultBox.innerHTML = htmlContent;
+            
+        } catch (error) {
+            console.error("AI Error Triggered: ", error);
+            
+            resultBox.innerHTML = `
+                <h4><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Error Analyzing Symptoms</h4>
+                <p style="color: var(--danger); font-weight: bold; margin-bottom: 10px;">Error Details: ${error.message}</p>
+                <p>Please verify your API key is valid, enabled, and has no billing restrictions. You can also consult a doctor directly through the 'Find Doctors' tab.</p>
+            `;
+        } finally {
+            loader.style.display = 'none';
+            resultBox.style.display = 'block';
+        }
+    }
+
+    // --- 4. DOCTORS & SEARCH LOGIC ---
+  function renderDoctors(doctors){
+
+const container=
+document.getElementById(
+"doctors-container"
+);
+
+container.innerHTML="";
+
+doctors.forEach(doc=>{
+
+container.innerHTML+=`
+
+<div class="doctor-card">
+    <img src="${doc.img}" class="doc-img" onerror="this.src='https://ui-avatars.com/api/?name=${doc.name}'">
+    <h3>${doc.name}</h3>
+    <p>${doc.spec}</p> <button class="btn" onclick="openBookingModal(${doc.id})">Book Appointment</button>
+</div>
+`;
+
+});
+
+}
+    function handleSearchInput() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        const suggestionsBox = document.getElementById('searchSuggestions');
+        
+        if (query === '') {
+            suggestionsBox.style.display = 'none';
+            renderDoctors(doctors); 
+            return;
+        }
+
+        let matches = [];
+        
+        const uniqueSpecs = [...new Set(doctors.map(d => d.spec))];
+        uniqueSpecs.forEach(spec => {
+            if(spec.toLowerCase().includes(query)) {
+                matches.push({ text: spec, type: 'Specialty', icon: 'fa-stethoscope' });
+            }
+        });
+
+        doctors.forEach(doc => {
+            if(doc.name.toLowerCase().includes(query)) {
+                matches.push({ text: doc.name, type: 'Doctor', spec: doc.spec, icon: 'fa-user-md' });
+            }
+        });
+
+        if (matches.length > 0) {
+            suggestionsBox.innerHTML = matches.map(match => `
+                <div class="suggestion-item" onclick="selectSuggestion('${match.text}')">
+                    <div class="suggestion-icon"><i class="fas ${match.icon}"></i></div>
+                    <div>
+                        <div class="suggestion-text">${highlightText(match.text, query)}</div>
+                        <div class="suggestion-sub">${match.type === 'Doctor' ? `Doctor (${match.spec})` : 'Specialty Area'}</div>
+                    </div>
+                </div>
+            `).join('');
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.innerHTML = `<div class="suggestion-item" style="justify-content: center; color: var(--gray);">No matches found</div>`;
+            suggestionsBox.style.display = 'block';
+        }
+
+        executeSearch(query);
+    }
+
+    function highlightText(text, query) {
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, `<span class="highlight">$1</span>`);
+    }
+
+    function selectSuggestion(selectedValue) {
+        document.getElementById('searchInput').value = selectedValue;
+        document.getElementById('searchSuggestions').style.display = 'none';
+        executeSearch(selectedValue.toLowerCase());
+    }
+
+    function executeSearch(query) {
+        renderDoctors(doctors.filter(d => 
+            d.name.toLowerCase().includes(query) || 
+            d.spec.toLowerCase().includes(query)
+        ));
+    }
+
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('searchContainer');
+        if (container && !container.contains(e.target)) {
+            document.getElementById('searchSuggestions').style.display = 'none';
+        }
+    });
+
+    function filterCategory(cat, el) {
+        document.querySelectorAll('.category-pill').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+        cat === 'All' ? renderDoctors(doctors) : renderDoctors(doctors.filter(d => d.spec === cat));
+    }
+
+    // --- 5. BOOKING FORM LOGIC ---
+    let currentDoc = null;
+    let selectedTimeSlot = null;
+
+  function openBookingModal(docId) {
+        currentDoc = doctors.find(d => d.id == docId); // Ise '==' kar dijiye
+        document.getElementById('modalDocName').innerText = `Booking: ${currentDoc.name}`;
+        
+        document.getElementById('bookPatName').value = currentUser.name || '';
+        document.getElementById('bookPatEmail').value = currentUser.email || '';
+        document.getElementById('bookPatPhone').value = currentUser.phone || '';
+        document.getElementById('bookPatAddress').value = currentUser.address || '';
+        document.getElementById('bookDate').value = '';
+        document.querySelectorAll('.slot-btn').forEach(btn => btn.classList.remove('selected'));
+        selectedTimeSlot = null;
+        
+        document.getElementById('bookingModal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('bookingModal').style.display = 'none'; }
+    
+    function selectSlot(element, time) {
+        document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+        element.classList.add('selected');
+        selectedTimeSlot = time;
+    }
+
+function confirmBooking() {
+        const name = document.getElementById('bookPatName').value;
+        const phone = document.getElementById('bookPatPhone').value;
+        const date = document.getElementById('bookDate').value;
+        
+        if(!name || !phone || !date || !selectedTimeSlot) return alert("Please fill all details, date, and time slot.");
+
+        // PHP backend ko data bhejne ke liye taiyari
+        let formData = new FormData();
+        formData.append("user", currentUser.email); 
+        formData.append("patient_name", name);   // PHP isko $_POST['patient_name'] se padhega
+        formData.append("patient_phone", phone); // PHP isko $_POST['patient_phone'] se padhega
+        formData.append("doctor", currentDoc.id); 
+        formData.append("date", date);
+        formData.append("time", selectedTimeSlot);
+
+        fetch("book.php", {
+            method: "POST",
+            body: formData
+        })
+        .then(res => res.text())
+        .then(data => {
+            // LocalStorage backup for frontend UI
+            const newBooking = { 
+                id: Date.now(), 
+                userEmail: currentUser.email, 
+                patName: name,
+                phone: phone,
+                doctor: currentDoc.name, 
+                spec: currentDoc.spec, 
+                date: date, 
+                time: selectedTimeSlot, 
+                status: 'Pending' 
+            };
+
+            let allBookings = JSON.parse(localStorage.getItem('smartHealthBookings')) || [];
+            allBookings.unshift(newBooking);
+            localStorage.setItem('smartHealthBookings', JSON.stringify(allBookings));
+            
+            alert("Success! Appointment request sent. Status: " + data);
+            closeModal();
+            if(document.getElementById('bookings-view').style.display === 'block') renderBookings();
+        })
+        .catch(err => {
+            console.log(err);
+            alert("Server connection failed.");
+        });
+    }
+
+function renderBookings() {
+        const list = document.getElementById('bookings-list');
+        list.innerHTML = '';
+
+        if (!currentUser || !currentUser.email) {
+            list.innerHTML = `<p style="color:var(--gray);">Please login to view your history.</p>`;
+            return;
+        }
+
+        // Parallel database loading for both tables
+        Promise.all([
+            fetch("getBookings.php").then(res => res.json()),
+            fetch("getAmbulance.php").then(res => res.json())
+        ])
+        .then(([allDocBookings, allAmbBookings]) => {
+            
+            // 1. Filter Doctor Appointments
+            let myDocBookings = allDocBookings.filter(b => {
+                if (!b.user_id || !currentUser.email) return false;
+                return b.user_id.toString().toLowerCase().trim() === currentUser.email.toString().toLowerCase().trim();
+            });
+
+            // 2. Filter Ambulance requests dynamically from DB
+            let myAmbBookings = allAmbBookings.filter(b => {
+                if (!b.user_id || !currentUser.email) return false;
+                return b.user_id.toString().toLowerCase().trim() === currentUser.email.toString().toLowerCase().trim();
+            });
+
+            if (myDocBookings.length === 0 && myAmbBookings.length === 0) { 
+                list.innerHTML = `<p style="color:var(--gray);">No appointments or ambulance bookings yet.</p>`; 
+                return; 
+            }
+
+            // Render Doctor Bookings
+            if(myDocBookings.length > 0) {
+                list.innerHTML += `<h4 style="margin-top: 10px; margin-bottom: 15px; color: var(--primary);">Doctor Appointments</h4>`;
+                myDocBookings.forEach(b => {
+                    let docObj = doctors.find(d => d.id == b.doctor_id) || { name: "Registered Doctor", spec: "Specialist" };
+                    let currentStatus = b.status || 'Pending';
+                    let statusColor = currentStatus === 'Cancelled' ? 'var(--gray)' : (currentStatus === 'Confirmed' || currentStatus === 'Accepted' ? 'var(--secondary)' : (currentStatus === 'Pending' ? '#ca8a04' : 'var(--primary)'));
+                    let cancelBtn = (currentStatus === 'Pending') ? `<button class="btn" style="background: #fee2e2; color: var(--danger); padding: 8px 15px; font-size: 0.85rem; width: auto;" onclick="cancelBooking(${b.id}, 'doctor')">Cancel</button>` : '';
+
+                    list.innerHTML += `
+                        <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-left: 4px solid ${statusColor};">
+                            <div>
+                                <h4 style="margin-bottom:5px;">${docObj.name} <span style="font-size:0.8rem; color:${statusColor};">(${currentStatus})</span></h4>
+                                <p style="color:var(--gray); font-size:0.9rem;">${docObj.spec} | Date: ${b.appointment_date} | Time: ${b.time_slot}</p>
+                            </div>
+                            <div>${cancelBtn}</div>
+                        </div>`;
+                });
+            }
+
+            // Render Ambulance Bookings from database
+            if(myAmbBookings.length > 0) {
+                list.innerHTML += `<h4 style="margin-top: 25px; margin-bottom: 15px; color: var(--danger);">Emergency Ambulance Bookings</h4>`;
+                myAmbBookings.forEach(b => {
+                    let currentStatus = b.status || 'Pending';
+                    let statusColor = currentStatus === 'Cancelled' ? 'var(--gray)' : (currentStatus === 'Dispatched' ? 'var(--secondary)' : '#ca8a04');
+
+                    list.innerHTML += `
+                        <div class="card" style="display:flex; justify-content:space-between; align-items:center; border-left: 4px solid ${statusColor};">
+                            <div>
+                                <h4 style="margin-bottom:5px;">Ambulance Request <span style="font-size:0.8rem; color:${statusColor};">(${currentStatus})</span></h4>
+                                <p style="color:var(--gray); font-size:0.9rem;">Patient: ${b.patient_name} | Type: ${b.emergency_type} <br> Pickup Location: ${b.address}</p>
+                            </div>
+                            <div></div>
+                        </div>`;
+                });
+            }
+        })
+        .catch(err => {
+            console.error("Fetch error:", err);
+            list.innerHTML = `<p style="color:var(--danger);">Error loading data from server.</p>`;
+        });
+    }
+  function cancelBooking(id, type) {
+        if(!confirm("Are you sure you want to cancel this booking?")) return;
+
+        if (type === 'doctor') {
+            // Database mein status 'Cancelled' update karne ke liye request
+            fetch(`updateBookingStatus.php?id=${id}&status=Cancelled`)
+            .then(res => res.text())
+            .then(data => {
+                alert("Booking cancelled successfully.");
+                renderBookings(); // UI refresh karein
+            });
+        } else if (type === 'ambulance') {
+            let bookings = JSON.parse(localStorage.getItem('smartHealthAmbBookings')) || [];
+            let index = bookings.findIndex(b => b.id === id);
+            if(index > -1) {
+                bookings[index].status = 'Cancelled';
+                localStorage.setItem('smartHealthAmbBookings', JSON.stringify(bookings));
+            }
+            alert("Booking cancelled successfully.");
+            renderBookings(); 
+        }
+    }
+
+    // --- 6. AMBULANCE BOOKING LOGIC ---
+   function bookAmbulance() {
+        const name = document.getElementById('ambName').value;
+        const phone = document.getElementById('ambPhone').value;
+        const address = document.getElementById('ambAddress').value;
+        const type = document.getElementById('ambType').value;
+
+        if(!name || !phone || !address){
+            return alert("Please provide all details!");
+        }
+
+        // Backend ko data bhejne ki taiyari
+        let formData = new FormData();
+        formData.append("user", currentUser.email); // <-- YE LINE HONI ZAROORI HAI
+        formData.append("name", name);
+        formData.append("phone", phone);
+        formData.append("pickup", address);
+        formData.append("destination", type);
+
+        fetch("bookAmbulance.php", {
+            method: "POST",
+            body: formData
+        })
+        .then(res => res.text())
+        .then(data => {
+            alert(data); // "Ambulance Booked Successfully" dikhayega bina error ke
+            document.getElementById("ambName").value = "";
+            document.getElementById("ambPhone").value = "";
+            document.getElementById("ambAddress").value = "";
+            if(document.getElementById('bookings-view').style.display === 'block') renderBookings();
+        })
+        .catch(err => {
+            console.log(err);
+            alert("Server Error");
+        });
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Healthcare System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-hover: #3a56d4;
+            --primary-light: rgba(67, 97, 238, 0.1);
+            --secondary: #eef2f6;
+            --text-dark: #2b2b2b;
+            --text-light: #6c757d;
+            --sidebar-bg: #ffffff;
+            --danger: #ef476f;
+            --danger-light: rgba(239, 71, 111, 0.1);
+            --success: #06d6a0;
+            --bg-color: #f4f7fe;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Authentication (Login/Register) UI --- */
+        #auth-view {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #4361ee 0%, #4cc9f0 100%);
+            padding: 20px;
+        }
+
+        .auth-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            transition: all 0.3s ease;
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .auth-header h2 {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px 12px 45px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+        }
+
+        .error-msg {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+        }
+
+        .toggle-auth {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .toggle-auth span {
+            color: var(--primary);
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        #register-form { display: none; }
+
+        /* --- Dashboard UI --- */
+        #dashboard-view {
+            display: none;
+            height: 100vh;
+            width: 100%;
+            position: relative;
+        }
+
+        /* Sidebar UX Improvements */
+        .sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            height: 100%;
+            position: fixed;
+            left: 0;
+            top: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.03);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            border-right: 1px solid #f0f0f0;
+        }
+
+        .close-sidebar {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-light);
+            transition: 0.3s;
+        }
+        
+        .close-sidebar:hover {
+            color: var(--danger);
+        }
+
+        .sidebar-brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .nav-links {
+            list-style: none;
+            flex: 1;
+        }
+
+        .nav-links li {
+            padding: 15px 30px;
+            margin: 5px 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: var(--text-light);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            font-weight: 500;
+        }
+
+        /* Active State Pattern */
+        .nav-links li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background: var(--primary);
+            border-radius: 0 4px 4px 0;
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-links li:hover {
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .nav-links li.active {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .nav-links li.active::before {
+            transform: scaleY(1);
+        }
+
+        /* Special Styling for specific tabs */
+        .nav-links li.ambulance-tab {
+            color: var(--danger);
+        }
+        
+        .nav-links li.ambulance-tab:hover,
+        .nav-links li.ambulance-tab.active {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .nav-links li.ambulance-tab::before {
+            background: var(--danger);
+        }
+
+        .logout-btn {
+            padding: 15px 30px;
+            margin: 0 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: var(--danger);
+            transition: 0.3s;
+            font-weight: 500;
+        }
+
+        .logout-btn:hover {
+            background: var(--danger-light);
+        }
+
+        /* Sidebar Overlay for Mobile */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            margin-left: 260px;
+            padding: 20px 30px;
+            height: 100vh;
+            overflow-y: auto;
+            transition: margin-left 0.3s ease;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            background: white;
+            padding: 15px 25px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            gap: 15px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .sidebar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--primary);
+            cursor: pointer;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+        }
+
+        /* Content Sections */
+        .content-section {
+            display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
+            animation: fadeIn 0.4s ease-in-out;
+            margin-bottom: 30px;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        /* Forms in Dashboard */
+        .dash-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+
+        .form-group input, .form-group select {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary);
+        }
+
+        .form-submit {
+            grid-column: span 2;
+            margin-top: 10px;
+        }
+
+        /* Table Design */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        th {
+            background-color: var(--secondary);
+            font-weight: 600;
+            color: var(--text-dark);
+            white-space: nowrap;
+        }
+
+        tr:hover {
+            background-color: #f8faff;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .badge.confirmed { background: #dcfce7; color: #16a34a; }
+        .badge.pending { background: #fef9c3; color: #ca8a04; }
+        .badge.danger { background: #fee2e2; color: #ef4444; }
+        .badge.accepted { background: #e0f2fe; color: #0284c7; }
+        .badge.google { background: #e8f0fe; color: #1a73e8; }
+        .badge.manual { background: #f1f3f4; color: #5f6368; }
+
+        .doc-avatar, .user-record-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #eee;
+        }
+
+        .btn-sm {
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            border: none;
+            cursor: pointer;
+            color: white;
+            font-weight: 500;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-sm:hover {
+            opacity: 0.9;
+        }
+
+        /* ========================================= */
+        /* RESPONSIVE MEDIA QUERIES                  */
+        /* ========================================= */
+
+        @media (max-width: 992px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+                opacity: 1;
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .sidebar-toggle {
+                display: block;
+            }
+
+            .close-sidebar {
+                display: block;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dash-form {
+                grid-template-columns: 1fr;
+            }
+
+            .form-submit {
+                grid-column: span 1;
+            }
+
+            .form-group[style*="grid-column: span 2"] {
+                grid-column: span 1 !important;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .header-left {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .user-info {
+                width: 100%;
+                justify-content: flex-start;
+                padding-top: 10px;
+                border-top: 1px solid #eee;
+            }
+
+            .content-section {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 30px 20px;
+            }
+            
+            .section-header h2 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="auth-view">
+        <div class="auth-container">
+            <div id="login-form">
+                <div class="auth-header">
+                    <h2>Welcome Back</h2>
+                    <p style="color: var(--text-light); font-size: 14px; margin-top: 5px;">Admin Login Panel</p>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="login-email" placeholder="Email Address">
+                    <div class="error-msg" id="login-email-error">Invalid email format</div>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Password">
+                    <div class="error-msg" id="login-pass-error">Password must be at least 6 characters</div>
+                </div>
+                <button class="btn" onclick="handleLogin()">Login</button>
+                <div class="toggle-auth">
+                    New Admin? <span onclick="toggleAuth('register')">Register here</span>
+                </div>
+            </div>
+
+            <div id="register-form">
+                <div class="auth-header">
+                    <h2>Create Account</h2>
+                    <p style="color: var(--text-light); font-size: 14px; margin-top: 5px;">Register New Admin</p>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="reg-name" placeholder="Full Name">
+                    <div class="error-msg" id="reg-name-error">Name is required</div>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="reg-email" placeholder="Email Address">
+                    <div class="error-msg" id="reg-email-error">Invalid email format</div>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="reg-password" placeholder="Password">
+                    <div class="error-msg" id="reg-pass-error">Password must be at least 6 characters</div>
+                </div>
+                <button class="btn" onclick="handleRegister()">Register</button>
+                <div class="toggle-auth">
+                    Already have an account? <span onclick="toggleAuth('login')">Login here</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard-view">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+        
+        <div class="sidebar" id="sidebar">
+            <div class="close-sidebar" onclick="toggleSidebar()">
+                <i class="fas fa-times"></i>
+            </div>
+            <div class="sidebar-brand">
+                <i class="fas fa-heartbeat"></i> MedAdmin
+            </div>
+            <ul class="nav-links">
+                <li class="active" onclick="switchTab('booking-tab', this)">
+                    <i class="fas fa-calendar-check"></i> Booked Slots
+                </li>
+                <li onclick="switchTab('registered-users-tab', this)">
+                    <i class="fas fa-users"></i> Registered Users
+                </li>
+                <li onclick="switchTab('doctor-list-tab', this)">
+                    <i class="fas fa-list-ul"></i> Added Doctors
+                </li>
+                <li onclick="switchTab('doctor-tab', this)">
+                    <i class="fas fa-user-md"></i> Add Doctor
+                </li>
+                <li class="ambulance-tab" onclick="switchTab('ambulance-bookings-tab', this)">
+                    <i class="fas fa-truck-medical"></i> Ambulance Bookings
+                </li>
+            </ul>
+            <div style="flex: 1;"></div>
+            <div class="logout-btn" onclick="handleLogout()">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <div class="header-left">
+                    <button class="sidebar-toggle" onclick="toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div>
+                        <h3 style="color: var(--text-dark);">Dashboard Overview</h3>
+                        <p style="color: var(--text-light); font-size: 14px;" id="current-date"></p>
+                    </div>
+                </div>
+                <div class="user-info">
+                    <span style="font-weight: 500;" id="admin-name-display">Admin</span>
+                    <div class="user-avatar"><i class="fas fa-user"></i></div>
+                </div>
+            </div>
+
+            <div id="booking-tab" class="content-section active">
+                <div class="section-header">
+                    <h2>Appointment Bookings</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Patient Name</th>
+                                <th>Doctor</th>
+                                <th>Date & Time Slot</th>
+                                <th>Contact</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookings-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="registered-users-tab" class="content-section">
+                <div class="section-header">
+                    <h2>Patient Sign-In Directory</h2>
+                    <button class="btn" style="width: auto; padding: 8px 20px; font-size: 14px; background: var(--danger);" onclick="clearAllUsers()">Clear Users Database</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Photo / Avatar</th>
+                                <th>User Name</th>
+                                <th>Email Address</th>
+                                <th>Login Method</th>
+                                <th>Profile Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="doctor-list-tab" class="content-section">
+                <div class="section-header">
+                    <h2>Registered Doctors</h2>
+                    <button class="btn" style="width: auto; padding: 8px 20px; font-size: 14px;" onclick="clearAllDoctors()">Clear All Data</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Profile</th>
+                                <th>Doctor Name</th>
+                                <th>Specialization</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="doctors-list-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="doctor-tab" class="content-section">
+                <div class="section-header">
+                    <h2>Add New Doctor</h2>
+                </div>
+                <form class="dash-form" id="add-doc-form" onsubmit="addDoctor(event)">
+                    <div class="form-group">
+                        <label>Doctor Name</label>
+                        <input type="text" id="doc-name" required placeholder="Dr. John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label>Specialization</label>
+                        <select id="doc-spec" required>
+                            <option value="">Select Category</option>
+                            <option value="Cardiology">Cardiology (Heart)</option>
+                            <option value="Dermatology">Dermatology (Skin)</option>
+                            <option value="Dentistry">Dentistry (Teeth)</option>
+                            <option value="Oncology">Oncology (Cancer)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Experience (Years)</label>
+                        <input type="number" id="doc-exp" required placeholder="e.g. 5">
+                    </div>
+                    <div class="form-group">
+                        <label>Available Days</label>
+                        <input type="text" id="doc-days" required placeholder="Mon - Fri">
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Upload Doctor Profile Image</label>
+                        <input type="file" id="doc-img-file" accept="image/*" required>
+                    </div>
+                    <div class="form-submit">
+                        <button class="btn" type="submit" style="width: auto; padding: 12px 30px;">Save Doctor Profile</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="ambulance-bookings-tab" class="content-section">
+                <div class="section-header">
+                    <h2 style="color: var(--danger);">Emergency Ambulance Bookings</h2>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Patient Name</th>
+                                <th>Contact</th>
+                                <th>Address / Location</th>
+                                <th>Emergency Type</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="amb-bookings-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- Utilities ---
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        // --- Mobile Sidebar Toggle ---
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('show');
+            document.getElementById('sidebar-overlay').classList.toggle('show');
+        }
+
+        // --- Authentication Logic ---
+        function toggleAuth(type) {
+            if(type === 'register') {
+                document.getElementById('login-form').style.display = 'none';
+                document.getElementById('register-form').style.display = 'block';
+            } else {
+                document.getElementById('register-form').style.display = 'none';
+                document.getElementById('login-form').style.display = 'block';
+            }
+        }
+
+        function validateInput(id, errorId, validationType) {
+            const val = document.getElementById(id).value.trim();
+            const errorElement = document.getElementById(errorId);
+            let isValid = true;
+            if (validationType === 'email') isValid = emailRegex.test(val);
+            else if (validationType === 'password') isValid = val.length >= 6;
+            else if (validationType === 'name') isValid = val.length > 2;
+            errorElement.style.display = isValid ? 'none' : 'block';
+            return isValid;
+        }
+
+function handleRegister() {
+            const isNameValid = validateInput('reg-name', 'reg-name-error', 'name');
+            const isEmailValid = validateInput('reg-email', 'reg-email-error', 'email');
+            const isPassValid = validateInput('reg-password', 'reg-pass-error', 'password');
+
+            if(isNameValid && isEmailValid && isPassValid) {
+                const email = document.getElementById('reg-email').value.trim();
+                const pass = document.getElementById('reg-password').value;
+                const name = document.getElementById('reg-name').value.trim();
+
+                let formData = new FormData();
+                formData.append("name", name);
+                formData.append("email", email);
+                formData.append("password", pass);
+
+                fetch("adminRegister.php", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(res => res.text())
+                .then(data => {
+                    console.log("Register Response:", data); // Debugging ke liye
+                    if(data.trim() === "success") {
+                        alert('Admin Registration Successful! Please login.');
+                        toggleAuth('login');
+                    } else {
+                        alert("Server Response: " + data);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Registration connection failed.");
+                });
+            }
+        }
+
+        function handleLogin() {
+            const isEmailValid = validateInput('login-email', 'login-email-error', 'email');
+            const isPassValid = validateInput('login-password', 'login-pass-error', 'password');
+
+            if(isEmailValid && isPassValid) {
+                const email = document.getElementById('login-email').value.trim();
+                const pass = document.getElementById('login-password').value;
+
+                // Local Fallback for Demo Admin
+                if(email === 'admin@demo.com' && pass === '123456') {
+                    document.getElementById('admin-name-display').innerText = 'Super Admin';
+                    document.getElementById('auth-view').style.display = 'none';
+                    document.getElementById('dashboard-view').style.display = 'flex';
+                    loadBookings();
+                    loadRegisteredUsers();
+                    loadAddedDoctors();
+                    loadAmbulanceBookings();
+                    return;
+                }
+
+                let formData = new FormData();
+                formData.append("email", email);
+                formData.append("password", pass);
+
+                fetch("adminLogin.php", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(res => res.text())
+                .then(data => {
+                    console.log("Login Response from Server:", data); // Debugging log
+                    try {
+                        let res = JSON.parse(data);
+                        if(res.status === "success") {
+                            document.getElementById('admin-name-display').innerText = res.name;
+                            document.getElementById('auth-view').style.display = 'none';
+                            document.getElementById('dashboard-view').style.display = 'flex';
+                            
+                            // Load all dashboard modules safely
+                            if(typeof loadBookings === 'function') loadBookings();
+                            if(typeof loadRegisteredUsers === 'function') loadRegisteredUsers();
+                            if(typeof loadAddedDoctors === 'function') loadAddedDoctors();
+                            if(typeof loadAmbulanceBookings === 'function') loadAmbulanceBookings();
+                            
+                            alert("Admin Login Success!");
+                        }
+                    } catch(e) {
+                        // Agar response JSON nahi hai (koi PHP Warning hai), toh exact error dikhayega
+                        alert("Auth Message: " + data);
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Server Connection Error");
+                });
+            }
+        }
+        function handleLogout() {
+            document.getElementById('dashboard-view').style.display = 'none';
+            document.getElementById('auth-view').style.display = 'flex';
+            document.getElementById('login-password').value = '';
+        }
+
+        // --- Dashboard Navigation Logic ---
+        function switchTab(tabId, element) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(sec => sec.classList.remove('active'));
+            const links = document.querySelectorAll('.nav-links li');
+            links.forEach(link => link.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+
+            if(window.innerWidth <= 992) {
+                document.getElementById('sidebar').classList.remove('show');
+                document.getElementById('sidebar-overlay').classList.remove('show');
+            }
+
+            if(tabId === 'booking-tab') loadBookings();
+            else if (tabId === 'registered-users-tab') loadRegisteredUsers();
+            else if (tabId === 'doctor-list-tab') loadAddedDoctors();
+            else if (tabId === 'ambulance-bookings-tab') loadAmbulanceBookings(); 
+        }
+
+        // --- DOCTOR BOOKINGS LOGIC ---
+        // --- DOCTOR BOOKINGS LOGIC (REAL-TIME DATABASE) ---
+        function loadBookings() {
+            // Ab data LocalStorage se nahi, sidha phpMyAdmin se aayega
+            fetch("getBookings.php")
+            .then(res => res.json())
+            .then(allBookings => {
+                const tbody = document.getElementById('bookings-table-body');
+                tbody.innerHTML = '';
+
+                if(allBookings.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No appointments booked yet.</td></tr>';
+                    return;
+                }
+
+                allBookings.forEach(data => {
+                    let statusBadge = '';
+                    let actionButtons = '';
+                    let currentStatus = data.status || 'Pending';
+
+                    if (currentStatus === 'Accepted') {
+                        statusBadge = `<span class="badge accepted">Accepted</span>`;
+                        actionButtons = `<button class="btn-sm" style="background: #10B981;" onclick="updateDocStatus(${data.id}, 'Confirmed')">Complete</button>`;
+                    } else if (currentStatus === 'Confirmed' || currentStatus === 'Completed') {
+                        statusBadge = `<span class="badge confirmed">Confirmed</span>`;
+                        actionButtons = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteDocBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
+                    } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
+                        statusBadge = `<span class="badge danger">${currentStatus}</span>`;
+                        actionButtons = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteDocBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
+                    } else {
+                        statusBadge = `<span class="badge pending">Pending</span>`;
+                        actionButtons = `
+                            <button class="btn-sm" style="background: #3b82f6;" onclick="updateDocStatus(${data.id}, 'Accepted')">Accept</button>
+                            <button class="btn-sm" style="background: var(--danger);" onclick="updateDocStatus(${data.id}, 'Rejected')">Reject</button>
+                        `;
+                    }
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-weight: 500;">${data.patient_name || 'N/A'}</td>
+                            <td>Doctor ID: ${data.doctor_id}</td>
+                            <td>${data.appointment_date} | ${data.time_slot}</td>
+                            <td>${data.patient_phone || 'N/A'}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionButtons}</td>
+                        </tr>
+                    `;
+                });
+            });
+        }
+
+        function updateDocStatus(id, newStatus) {
+            // Sidha database mein status update karega
+            fetch(`updateBookingStatus.php?id=${id}&status=${newStatus}`)
+            .then(res => res.text())
+            .then(data => {
+                alert(data);
+                loadBookings(); // Table refresh karein
+            });
+        }
+
+        function deleteDocBooking(id) {
+            if(confirm("Are you sure you want to permanently delete this booking from phpMyAdmin?")) {
+                // Database se row delete karne ke liye fetch request
+                fetch("deleteBooking.php?id=" + id)
+                .then(res => res.text())
+                .then(data => {
+                    alert(data); // "Booking Deleted Successfully" dikhayega
+                    loadBookings(); // Table ko turant refresh karega
+                })
+                .catch(err => {
+                    console.log("Error:", err);
+                    alert("Server error, could not delete.");
+                });
+            }
+        }
+
+        // --- NEW REAL-TIME USERS LOGIC ---
+   function loadRegisteredUsers(){
+
+fetch("getUsers.php")
+
+.then(res=>res.json())
+
+.then(users=>{
+
+const tbody=
+document.getElementById(
+"users-table-body"
+);
+
+tbody.innerHTML="";
+
+if(users.length==0){
+
+tbody.innerHTML=
+"<tr><td colspan='5'>No patients registered</td></tr>";
+
+return;
+
+}
+
+users.forEach(user=>{
+
+tbody.innerHTML +=`
+
+<tr>
+
+<td>
+<img src="https://ui-avatars.com/api/?name=${user.name}"
+class="user-record-avatar">
+</td>
+
+<td>${user.name}</td>
+
+<td>${user.email}</td>
+
+<td>
+<span class="badge manual">
+Database
+</span>
+</td>
+
+<td>
+Registered User
+</td>
+
+</tr>
+
+`;
+
+});
+
+});
+
+}
+
+        function clearAllUsers() {
+            if(confirm("CRITICAL WARNING: This will permanently delete all index page user accounts from localStorage. Continue?")) {
+                localStorage.removeItem('smartHealthDB');
+                localStorage.removeItem('smartHealthUser'); // Destroys active user session if running
+                loadRegisteredUsers();
+                alert("Patient user database cleared successfully.");
+            }
+        }
+
+       // --- AMBULANCE BOOKINGS LOGIC (REAL-TIME DATABASE) ---
+        function loadAmbulanceBookings(){
+            fetch("getAmbulance.php")
+            .then(res => res.json())
+            .then(ambBookings => {
+                const tbody = document.getElementById('amb-bookings-table-body');
+                tbody.innerHTML = '';
+
+                if(ambBookings.length == 0){
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No ambulance bookings found.</td></tr>';
+                    return;
+                }
+
+                ambBookings.forEach(data => {
+                    let currentStatus = data.status || 'Pending';
+                    let statusBadge = `<span class="badge pending">Pending</span>`;
+                    let actionButton = `<button class="btn-sm" style="background:#3b82f6" onclick="updateAmbStatus(${data.id}, 'Dispatched')">Accept & Dispatch</button>`;
+                    
+                    if(currentStatus === 'Dispatched') {
+                        statusBadge = `<span class="badge confirmed" style="background:#dcfce7; color:#16a34a;">Dispatched</span>`;
+                        actionButton = `<span style="color:var(--text-light); font-size:12px; margin-right: 10px;"><i class="fas fa-check"></i> Dispatched</span>`;
+                    }
+
+                    // YE NAYA DELETE BUTTON ADD KIYA HAI
+                    let deleteButton = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteAmbBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
+
+                    tbody.innerHTML += `
+                    <tr>
+                        <td>${data.patient_name}</td>
+                        <td>${data.phone}</td>
+                        <td>${data.address}</td>
+                        <td>${data.emergency_type}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                ${actionButton}
+                                ${deleteButton}
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+            });
+        }
+
+        function updateAmbStatus(id, newStatus) {
+            // Sidha database table ko update karega
+            fetch(`updateAmbulanceStatus.php?id=${id}&status=${newStatus}`)
+            .then(res => res.text())
+            .then(data => {
+                alert(data);
+                loadAmbulanceBookings(); // Live refresh
+            })
+            .catch(err => console.log("Error updating ambulance:", err));
+        }
+     function deleteAmbBooking(id) {
+            if(confirm("Are you sure you want to permanently delete this ambulance record from phpMyAdmin?")) {
+                // Database se connect karne ke liye fetch API hit karein
+                fetch("deleteAmbulance.php?id=" + id)
+                .then(res => res.text())
+                .then(data => {
+                    alert(data); // "Ambulance Record Deleted Successfully" ka message aayega
+                    loadAmbulanceBookings(); // Table refresh karein
+                })
+                .catch(err => {
+                    console.log("Error deleting ambulance:", err);
+                    alert("Server error, could not delete.");
+                });
+            }
+        }
+function removeDoctor(id) {
+            if(confirm("Are you sure you want to remove this doctor?")) {
+                // Calls your deleteDoctor.php file using a GET request
+                fetch("deleteDoctor.php?id=" + id)
+                .then(res => res.text())
+                .then(data => {
+                    alert(data); // Shows "Doctor Removed" or "Error"
+                    loadAddedDoctors(); // Refreshes the table automatically
+                })
+                .catch(err => {
+                    console.log("Error:", err);
+                    alert("Failed to connect to the server.");
+                });
+            }
+        }
+        // --- DOCTOR MANAGEMENT LOGIC ---
+     
+
+function loadAddedDoctors(){
+
+fetch("getDoctors.php")
+
+.then(res=>res.json())
+
+.then(doctors=>{
+
+const tbody =
+document.getElementById(
+"doctors-list-table-body"
+);
+
+tbody.innerHTML="";
+
+if(doctors.length==0){
+
+tbody.innerHTML=
+"<tr><td colspan='4'>No doctors added to the system yet.</td></tr>";
+
+return;
+
+}
+
+doctors.forEach(doc=>{
+
+tbody.innerHTML +=`
+
+<tr>
+
+<td>
+<img src="${doc.image}"
+class="doc-avatar"
+onerror="this.src='https://ui-avatars.com/api/?name=${doc.doctor_name}'">
+</td>
+
+<td>${doc.doctor_name}</td>
+
+<td>${doc.specialization}</td>
+
+<td>
+
+<button
+class="btn-sm"
+style="background:#ef476f"
+onclick="removeDoctor(${doc.id})">
+
+Remove
+
+</button>
+
+</td>
+
+</tr>
+
+`;
+
+});
+
+});
+
+}
+
+ function addDoctor(event){
+
+event.preventDefault();
+
+const formData=new FormData();
+
+formData.append(
+"doctor_name",
+document.getElementById("doc-name").value
+);
+
+formData.append(
+"specialization",
+document.getElementById("doc-spec").value
+);
+
+formData.append(
+"experience",
+document.getElementById("doc-exp").value
+);
+
+formData.append(
+"days",
+document.getElementById("doc-days").value
+);
+
+formData.append(
+"image",
+document.getElementById("doc-img-file").files[0]
+);
+
+fetch("addDoctor.php",{
+method:"POST",
+body:formData
+})
+
+.then(r=>r.text())
+
+.then(data=>{
+
+alert(data);
+
+loadAddedDoctors();
+
+document.getElementById(
+"add-doc-form"
+).reset();
+
+});
+
+}
+        function clearAllDoctors() {
+            if(confirm("WARNING: This will delete ALL doctors from the system. Use this to clear old dummy data. Proceed?")) {
+                localStorage.removeItem('smartHealthDoctors');
+                loadAddedDoctors();
+                alert("Database cleared! Go to 'Add Doctor' to start fresh.");
+            }
+        }
+    </script>
+</body>
+</html>
