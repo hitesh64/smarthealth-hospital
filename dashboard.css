@@ -353,7 +353,7 @@
 .header-brand:hover .brand-mark { transform: scale(1.08) rotate(-4deg); }
 .header-brand .brand-name { color: var(--navy); }
 .header-brand .brand-name span { color: #16a34a; }
-.auth-logo { display: block; width: 190px; max-width: 70%; margin: -6px auto 10px; animation: dashRise .5s var(--rise) both; }
+.auth-logo { display: block; width: 190px; height: auto; max-width: 70%; margin: -6px auto 10px; }
 
 /* ---------- Footer ---------- */
 .site-footer {
@@ -766,3 +766,13 @@
     .doc-row { padding: 14px; }
     .doc-slot { padding: 9px 12px; font-size: 13px; }
 }
+
+/* ---------- Performance ---------- */
+/* The login popup holds the logo, the largest thing on the first screen: it appears at once instead of fading in */
+#authModal .modal-content { animation: none; }
+/* The blurred glows move on their own layer, so the blur is not recomputed on every frame */
+.hero-aurora i { will-change: transform; }
+/* While a popup covers the page, the decorative animations behind its blurred backdrop are paused */
+body:has(> .modal[style*="display: flex"]) > :not(.modal) *,
+body:has(> .modal[style*="display: flex"]) > :not(.modal) *::before,
+body:has(> .modal[style*="display: flex"]) > :not(.modal) *::after { animation-play-state: paused !important; }

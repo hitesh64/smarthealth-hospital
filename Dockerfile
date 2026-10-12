@@ -2,7 +2,8 @@
 # The database is external; its address comes from the DB_* environment variables (see config.php).
 FROM php:8.2-apache
 
-RUN docker-php-ext-install mysqli \
+RUN a2enmod expires headers deflate \
+    && docker-php-ext-install mysqli \
     && { echo "upload_max_filesize=10M"; echo "post_max_size=12M"; echo "expose_php=Off"; echo "display_errors=Off"; echo "log_errors=On"; } > /usr/local/etc/php/conf.d/app.ini
 
 COPY . /var/www/html/
