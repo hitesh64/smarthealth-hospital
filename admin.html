@@ -3,1291 +3,584 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard | Healthcare System</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --primary: #4361ee;
-            --primary-hover: #3a56d4;
-            --primary-light: rgba(67, 97, 238, 0.1);
-            --secondary: #eef2f6;
-            --text-dark: #2b2b2b;
-            --text-light: #6c757d;
-            --sidebar-bg: #ffffff;
-            --danger: #ef476f;
-            --danger-light: rgba(239, 71, 111, 0.1);
-            --success: #06d6a0;
-            --bg-color: #f4f7fe;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-dark);
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* --- Authentication (Login/Register) UI --- */
-        #auth-view {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: linear-gradient(135deg, #4361ee 0%, #4cc9f0 100%);
-            padding: 20px;
-        }
-
-        .auth-container {
-            background: #fff;
-            padding: 40px;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 400px;
-            transition: all 0.3s ease;
-        }
-
-        .auth-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .auth-header h2 {
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .input-group {
-            margin-bottom: 20px;
-            position: relative;
-        }
-
-        .input-group i {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-light);
-        }
-
-        .input-group input {
-            width: 100%;
-            padding: 12px 15px 12px 45px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            outline: none;
-            transition: 0.3s;
-        }
-
-        .input-group input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
-        }
-
-        .error-msg {
-            color: var(--danger);
-            font-size: 12px;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            transition: 0.3s;
-        }
-
-        .btn:hover {
-            background: var(--primary-hover);
-            transform: translateY(-2px);
-        }
-
-        .toggle-auth {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-        }
-
-        .toggle-auth span {
-            color: var(--primary);
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        #register-form { display: none; }
-
-        /* --- Dashboard UI --- */
-        #dashboard-view {
-            display: none;
-            height: 100vh;
-            width: 100%;
-            position: relative;
-        }
-
-        /* Sidebar UX Improvements */
-        .sidebar {
-            width: 260px;
-            background: var(--sidebar-bg);
-            height: 100%;
-            position: fixed;
-            left: 0;
-            top: 0;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.03);
-            padding: 20px 0;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            border-right: 1px solid #f0f0f0;
-        }
-
-        .close-sidebar {
-            display: none;
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-light);
-            transition: 0.3s;
-        }
-        
-        .close-sidebar:hover {
-            color: var(--danger);
-        }
-
-        .sidebar-brand {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--primary);
-            text-align: center;
-            margin-bottom: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .nav-links {
-            list-style: none;
-            flex: 1;
-        }
-
-        .nav-links li {
-            padding: 15px 30px;
-            margin: 5px 15px;
-            border-radius: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            color: var(--text-light);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            font-weight: 500;
-        }
-
-        /* Active State Pattern */
-        .nav-links li::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 4px;
-            background: var(--primary);
-            border-radius: 0 4px 4px 0;
-            transform: scaleY(0);
-            transition: transform 0.3s ease;
-        }
-
-        .nav-links li:hover {
-            color: var(--primary);
-            background: var(--primary-light);
-        }
-
-        .nav-links li.active {
-            background: var(--primary-light);
-            color: var(--primary);
-        }
-
-        .nav-links li.active::before {
-            transform: scaleY(1);
-        }
-
-        /* Special Styling for specific tabs */
-        .nav-links li.ambulance-tab {
-            color: var(--danger);
-        }
-        
-        .nav-links li.ambulance-tab:hover,
-        .nav-links li.ambulance-tab.active {
-            background: var(--danger-light);
-            color: var(--danger);
-        }
-
-        .nav-links li.ambulance-tab::before {
-            background: var(--danger);
-        }
-
-        .logout-btn {
-            padding: 15px 30px;
-            margin: 0 15px;
-            border-radius: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            color: var(--danger);
-            transition: 0.3s;
-            font-weight: 500;
-        }
-
-        .logout-btn:hover {
-            background: var(--danger-light);
-        }
-
-        /* Sidebar Overlay for Mobile */
-        .sidebar-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            z-index: 999;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        /* Main Content Layout */
-        .main-content {
-            margin-left: 260px;
-            padding: 20px 30px;
-            height: 100vh;
-            overflow-y: auto;
-            transition: margin-left 0.3s ease;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            background: white;
-            padding: 15px 25px;
-            border-radius: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
-            gap: 15px;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .sidebar-toggle {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: var(--primary);
-            cursor: pointer;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: 600;
-        }
-
-        /* Content Sections */
-        .content-section {
-            display: none;
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.03);
-            animation: fadeIn 0.4s ease-in-out;
-            margin-bottom: 30px;
-        }
-
-        .content-section.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .section-header {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        /* Forms in Dashboard */
-        .dash-form {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .form-group label {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-dark);
-        }
-
-        .form-group input, .form-group select {
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            outline: none;
-            transition: 0.3s;
-        }
-
-        .form-group input:focus, .form-group select:focus {
-            border-color: var(--primary);
-        }
-
-        .form-submit {
-            grid-column: span 2;
-            margin-top: 10px;
-        }
-
-        /* Table Design */
-        .table-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            width: 100%;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 600px;
-        }
-
-        th, td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            vertical-align: middle;
-        }
-
-        th {
-            background-color: var(--secondary);
-            font-weight: 600;
-            color: var(--text-dark);
-            white-space: nowrap;
-        }
-
-        tr:hover {
-            background-color: #f8faff;
-        }
-
-        .badge {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            display: inline-block;
-            white-space: nowrap;
-        }
-
-        .badge.confirmed { background: #dcfce7; color: #16a34a; }
-        .badge.pending { background: #fef9c3; color: #ca8a04; }
-        .badge.danger { background: #fee2e2; color: #ef4444; }
-        .badge.accepted { background: #e0f2fe; color: #0284c7; }
-        .badge.google { background: #e8f0fe; color: #1a73e8; }
-        .badge.manual { background: #f1f3f4; color: #5f6368; }
-
-        .doc-avatar, .user-record-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #eee;
-        }
-
-        .btn-sm {
-            padding: 8px 12px;
-            font-size: 12px;
-            border-radius: 6px;
-            margin-right: 5px;
-            margin-bottom: 5px;
-            border: none;
-            cursor: pointer;
-            color: white;
-            font-weight: 500;
-            transition: 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .btn-sm:hover {
-            opacity: 0.9;
-        }
-
-        /* ========================================= */
-        /* RESPONSIVE MEDIA QUERIES                  */
-        /* ========================================= */
-
-        @media (max-width: 992px) {
-            .sidebar {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.show {
-                transform: translateX(0);
-            }
-
-            .sidebar-overlay.show {
-                display: block;
-                opacity: 1;
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .sidebar-toggle {
-                display: block;
-            }
-
-            .close-sidebar {
-                display: block;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .dash-form {
-                grid-template-columns: 1fr;
-            }
-
-            .form-submit {
-                grid-column: span 1;
-            }
-
-            .form-group[style*="grid-column: span 2"] {
-                grid-column: span 1 !important;
-            }
-
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            .header-left {
-                width: 100%;
-                justify-content: flex-start;
-            }
-
-            .user-info {
-                width: 100%;
-                justify-content: flex-start;
-                padding-top: 10px;
-                border-top: 1px solid #eee;
-            }
-
-            .content-section {
-                padding: 20px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .auth-container {
-                padding: 30px 20px;
-            }
-            
-            .section-header h2 {
-                font-size: 20px;
-            }
-        }
-    </style>
+    <title>Administration | Smart Health Hospital</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <link rel="stylesheet" href="popups.css?v=1">
+    <link rel="stylesheet" href="admin.css?v=4">
+    <link rel="stylesheet" href="admin-features.css?v=9">
 </head>
 <body>
 
+    <!-- ============================== SIGN-IN ============================== -->
     <div id="auth-view">
-        <div class="auth-container">
-            <div id="login-form">
-                <div class="auth-header">
-                    <h2>Welcome Back</h2>
-                    <p style="color: var(--text-light); font-size: 14px; margin-top: 5px;">Admin Login Panel</p>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-envelope"></i>
-                    <input type="email" id="login-email" placeholder="Email Address">
-                    <div class="error-msg" id="login-email-error">Invalid email format</div>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" id="login-password" placeholder="Password">
-                    <div class="error-msg" id="login-pass-error">Password must be at least 6 characters</div>
-                </div>
-                <button class="btn" onclick="handleLogin()">Login</button>
-                <div class="toggle-auth">
-                    New Admin? <span onclick="toggleAuth('register')">Register here</span>
-                </div>
+        <aside class="auth-aside">
+            <div class="auth-brand">
+                <span class="brand-mark"><i class="fas fa-staff-snake"></i></span>
+                <div><b>Smart Health</b><span>Hospital Administration</span></div>
             </div>
+            <div>
+                <h1>Hospital operations,<br>managed in one place.</h1>
+                <p>Appointments, medical staff, emergency response and pharmacy - a single secure console for authorised administrators.</p>
+                <ul class="auth-points">
+                    <li><i class="fas fa-calendar-check"></i> Appointment and patient records</li>
+                    <li><i class="fas fa-truck-medical"></i> Live ambulance dispatch and SOS alerts</li>
+                    <li><i class="fas fa-pills"></i> Pharmacy stock and medicine orders</li>
+                    <li><i class="fas fa-chart-line"></i> Analytics and downloadable reports</li>
+                </ul>
+            </div>
+            <div class="auth-foot">Authorised personnel only. Activity on this console may be recorded.</div>
+        </aside>
 
-            <div id="register-form">
-                <div class="auth-header">
-                    <h2>Create Account</h2>
-                    <p style="color: var(--text-light); font-size: 14px; margin-top: 5px;">Register New Admin</p>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-user"></i>
-                    <input type="text" id="reg-name" placeholder="Full Name">
-                    <div class="error-msg" id="reg-name-error">Name is required</div>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-envelope"></i>
-                    <input type="email" id="reg-email" placeholder="Email Address">
-                    <div class="error-msg" id="reg-email-error">Invalid email format</div>
-                </div>
-                <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" id="reg-password" placeholder="Password">
-                    <div class="error-msg" id="reg-pass-error">Password must be at least 6 characters</div>
-                </div>
-                <button class="btn" onclick="handleRegister()">Register</button>
-                <div class="toggle-auth">
-                    Already have an account? <span onclick="toggleAuth('login')">Login here</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="dashboard-view">
-        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
-        
-        <div class="sidebar" id="sidebar">
-            <div class="close-sidebar" onclick="toggleSidebar()">
-                <i class="fas fa-times"></i>
-            </div>
-            <div class="sidebar-brand">
-                <i class="fas fa-heartbeat"></i> MedAdmin
-            </div>
-            <ul class="nav-links">
-                <li class="active" onclick="switchTab('booking-tab', this)">
-                    <i class="fas fa-calendar-check"></i> Booked Slots
-                </li>
-                <li onclick="switchTab('registered-users-tab', this)">
-                    <i class="fas fa-users"></i> Registered Users
-                </li>
-                <li onclick="switchTab('doctor-list-tab', this)">
-                    <i class="fas fa-list-ul"></i> Added Doctors
-                </li>
-                <li onclick="switchTab('doctor-tab', this)">
-                    <i class="fas fa-user-md"></i> Add Doctor
-                </li>
-                <li class="ambulance-tab" onclick="switchTab('ambulance-bookings-tab', this)">
-                    <i class="fas fa-truck-medical"></i> Ambulance Bookings
-                </li>
-            </ul>
-            <div style="flex: 1;"></div>
-            <div class="logout-btn" onclick="handleLogout()">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </div>
-        </div>
-
-        <div class="main-content">
-            <div class="header">
-                <div class="header-left">
-                    <button class="sidebar-toggle" onclick="toggleSidebar()">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                    <div>
-                        <h3 style="color: var(--text-dark);">Dashboard Overview</h3>
-                        <p style="color: var(--text-light); font-size: 14px;" id="current-date"></p>
+        <main class="auth-main">
+            <div class="auth-container">
+                <form id="login-form" onsubmit="handleLogin(event)" novalidate>
+                    <div class="auth-header">
+                        <small>Administrator Portal</small>
+                        <h2>Sign in</h2>
+                        <p>Enter your administrator credentials to continue.</p>
                     </div>
-                </div>
-                <div class="user-info">
-                    <span style="font-weight: 500;" id="admin-name-display">Admin</span>
-                    <div class="user-avatar"><i class="fas fa-user"></i></div>
-                </div>
-            </div>
-
-            <div id="booking-tab" class="content-section active">
-                <div class="section-header">
-                    <h2>Appointment Bookings</h2>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Patient Name</th>
-                                <th>Doctor</th>
-                                <th>Date & Time Slot</th>
-                                <th>Contact</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bookings-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="registered-users-tab" class="content-section">
-                <div class="section-header">
-                    <h2>Patient Sign-In Directory</h2>
-                    <button class="btn" style="width: auto; padding: 8px 20px; font-size: 14px; background: var(--danger);" onclick="clearAllUsers()">Clear Users Database</button>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Photo / Avatar</th>
-                                <th>User Name</th>
-                                <th>Email Address</th>
-                                <th>Login Method</th>
-                                <th>Profile Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="doctor-list-tab" class="content-section">
-                <div class="section-header">
-                    <h2>Registered Doctors</h2>
-                    <button class="btn" style="width: auto; padding: 8px 20px; font-size: 14px;" onclick="clearAllDoctors()">Clear All Data</button>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Profile</th>
-                                <th>Doctor Name</th>
-                                <th>Specialization</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="doctors-list-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="doctor-tab" class="content-section">
-                <div class="section-header">
-                    <h2>Add New Doctor</h2>
-                </div>
-                <form class="dash-form" id="add-doc-form" onsubmit="addDoctor(event)">
+                    <div class="auth-alert" id="login-server-error"></div>
                     <div class="form-group">
-                        <label>Doctor Name</label>
-                        <input type="text" id="doc-name" required placeholder="Dr. John Doe">
+                        <label for="login-email">Email address</label>
+                        <input type="email" id="login-email" placeholder="name@hospital.com" autocomplete="username">
+                        <div class="error-msg" id="login-email-error">Enter a valid email address.</div>
                     </div>
                     <div class="form-group">
-                        <label>Specialization</label>
-                        <select id="doc-spec" required>
-                            <option value="">Select Category</option>
-                            <option value="Cardiology">Cardiology (Heart)</option>
-                            <option value="Dermatology">Dermatology (Skin)</option>
-                            <option value="Dentistry">Dentistry (Teeth)</option>
-                            <option value="Oncology">Oncology (Cancer)</option>
-                        </select>
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+                        <div class="error-msg" id="login-pass-error">Password must be at least 6 characters.</div>
                     </div>
-                    <div class="form-group">
-                        <label>Experience (Years)</label>
-                        <input type="number" id="doc-exp" required placeholder="e.g. 5">
-                    </div>
-                    <div class="form-group">
-                        <label>Available Days</label>
-                        <input type="text" id="doc-days" required placeholder="Mon - Fri">
-                    </div>
-                    <div class="form-group" style="grid-column: span 2;">
-                        <label>Upload Doctor Profile Image</label>
-                        <input type="file" id="doc-img-file" accept="image/*" required>
-                    </div>
-                    <div class="form-submit">
-                        <button class="btn" type="submit" style="width: auto; padding: 12px 30px;">Save Doctor Profile</button>
-                    </div>
+                    <button class="btn btn--block" type="submit" id="login-btn">Sign in</button>
+                    <div class="toggle-auth">Accounts are created by an existing administrator.</div>
                 </form>
             </div>
+        </main>
+    </div>
 
-            <div id="ambulance-bookings-tab" class="content-section">
-                <div class="section-header">
-                    <h2 style="color: var(--danger);">Emergency Ambulance Bookings</h2>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Patient Name</th>
-                                <th>Contact</th>
-                                <th>Address / Location</th>
-                                <th>Emergency Type</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="amb-bookings-table-body">
-                        </tbody>
-                    </table>
-                </div>
+    <div id="sos-banner" onclick="afOpenTab('sos-tab')"></div>
+
+    <!-- ============================== CONSOLE ============================== -->
+    <div id="dashboard-view">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-mark"><i class="fas fa-staff-snake"></i></span>
+                <div><b>Smart Health</b><span>Administration</span></div>
             </div>
 
+            <nav class="sidebar-nav">
+                <div class="nav-group">Clinical</div>
+                <ul class="nav-links">
+                    <li class="active" data-tab="booking-tab" title="Appointments"><i class="fas fa-calendar-check"></i> <span class="nav-label">Appointments</span></li>
+                    <li data-tab="registered-users-tab" title="Patients"><i class="fas fa-users"></i> <span class="nav-label">Patients</span></li>
+                    <li data-tab="doctor-list-tab" title="Doctors"><i class="fas fa-user-doctor"></i> <span class="nav-label">Doctors</span></li>
+                    <li data-tab="doctor-tab" title="Add Doctor"><i class="fas fa-user-plus"></i> <span class="nav-label">Add Doctor</span></li>
+                </ul>
+
+                <div class="nav-group">Emergency</div>
+                <ul class="nav-links">
+                    <li data-tab="ambulance-bookings-tab" title="Ambulance Bookings"><i class="fas fa-truck-medical"></i> <span class="nav-label">Ambulance Bookings</span></li>
+                    <li data-tab="sos-tab" title="SOS Alerts"><i class="fas fa-triangle-exclamation"></i> <span class="nav-label">SOS Alerts</span> <span class="nav-badge" id="sos-badge">0</span></li>
+                </ul>
+
+                <div class="nav-group">Pharmacy</div>
+                <ul class="nav-links">
+                    <li data-tab="medicine-tab" title="Medicine Stock"><i class="fas fa-pills"></i> <span class="nav-label">Medicine Stock</span> <span class="nav-badge" id="med-badge">0</span></li>
+                    <li data-tab="orders-tab" title="Medicine Orders"><i class="fas fa-bag-shopping"></i> <span class="nav-label">Medicine Orders</span> <span class="nav-badge" id="ord-badge">0</span></li>
+                </ul>
+
+                <div class="nav-group">Reports</div>
+                <ul class="nav-links">
+                    <li data-tab="analytics-tab" title="Analytics"><i class="fas fa-chart-line"></i> <span class="nav-label">Analytics</span></li>
+                    <li data-tab="notifications-tab" title="Notifications"><i class="fas fa-envelope"></i> <span class="nav-label">Notifications</span></li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-foot">
+                <button class="logout-btn" type="button" title="Sign out" onclick="handleLogout()">
+                    <i class="fas fa-arrow-right-from-bracket"></i> <span class="nav-label">Sign out</span>
+                </button>
+            </div>
+        </aside>
+
+        <div class="workspace">
+            <header class="topbar">
+                <button class="icon-btn" type="button" title="Toggle menu (Ctrl+B)" aria-label="Toggle menu" onclick="toggleMenu()"><i class="fas fa-bars"></i></button>
+                <div class="crumbs"><span>Administration</span><i class="fas fa-chevron-right"></i><b id="page-crumb">Appointments</b></div>
+                <div class="topbar-right">
+                    <span class="topbar-date" id="current-date"></span>
+                    <button class="icon-btn" type="button" title="Add administrator" aria-label="Add administrator" onclick="openAdminModal()"><i class="fas fa-user-shield"></i></button>
+                    <div class="user-info">
+                        <span class="avatar avatar--dark" id="admin-avatar">A</span>
+                        <div><b id="admin-name-display">Admin</b><small>Administrator</small></div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div class="page-wrap">
+
+                    <!-- ---------------- Appointments ---------------- -->
+                    <section id="booking-tab" class="content-section active">
+                        <div class="page-head">
+                            <div><h1>Appointments</h1><p>Review appointment requests, accept or decline them, and mark visits as completed.</p></div>
+                            <div class="page-actions"><button class="btn btn--outline" onclick="loadBookings()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+
+                        <div class="kpi-grid">
+                            <div class="kpi-card" onclick="switchTab('booking-tab')">
+                                <div><div class="kpi-label">Appointments</div><div class="kpi-value" id="kpi-bookings">&ndash;</div><div class="kpi-hint" id="kpi-bookings-hint">Total booked</div></div>
+                                <span class="kpi-icon"><i class="fas fa-calendar-check"></i></span>
+                            </div>
+                            <div class="kpi-card tone-green" onclick="switchTab('registered-users-tab')">
+                                <div><div class="kpi-label">Registered Patients</div><div class="kpi-value" id="kpi-users">&ndash;</div><div class="kpi-hint">Patient accounts</div></div>
+                                <span class="kpi-icon"><i class="fas fa-users"></i></span>
+                            </div>
+                            <div class="kpi-card tone-teal" onclick="switchTab('doctor-list-tab')">
+                                <div><div class="kpi-label">Doctors</div><div class="kpi-value" id="kpi-doctors">&ndash;</div><div class="kpi-hint">On the medical staff</div></div>
+                                <span class="kpi-icon"><i class="fas fa-user-doctor"></i></span>
+                            </div>
+                            <div class="kpi-card tone-red" onclick="switchTab('ambulance-bookings-tab')">
+                                <div><div class="kpi-label">Ambulance Requests</div><div class="kpi-value" id="kpi-ambulance">&ndash;</div><div class="kpi-hint" id="kpi-ambulance-hint">Total requests</div></div>
+                                <span class="kpi-icon"><i class="fas fa-truck-medical"></i></span>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Appointment Register <span class="count" id="bookings-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="bookings-search" placeholder="Search patient, doctor, phone" oninput="renderBookings()"></div>
+                                    <select class="field" id="bookings-status" onchange="renderBookings()">
+                                        <option value="">All statuses</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="Accepted">Accepted</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Closed">Rejected / Cancelled</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Patient</th><th>Doctor</th><th>Date &amp; Time</th><th>Token</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody id="bookings-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Patients ---------------- -->
+                    <section id="registered-users-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Patients</h1><p>Directory of patient accounts registered on the hospital website.</p></div>
+                            <div class="page-actions"><button class="btn btn--outline" onclick="loadRegisteredUsers()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Patient Directory <span class="count" id="users-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="users-search" placeholder="Search name, email, phone" oninput="renderUsers()"></div>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Patient</th><th>Email Address</th><th>Phone</th><th>Age</th><th>Blood Group</th></tr></thead>
+                                    <tbody id="users-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Doctors ---------------- -->
+                    <section id="doctor-list-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Doctors</h1><p>Medical staff shown to patients for booking. Open a doctor's records to see their appointments.</p></div>
+                            <div class="page-actions">
+                                <button class="btn btn--outline" onclick="loadAddedDoctors()"><i class="fas fa-rotate"></i> Refresh</button>
+                                <button class="btn" onclick="openAddDoctor()"><i class="fas fa-plus"></i> Add Doctor</button>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Medical Staff <span class="count" id="doctors-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="doctors-search" placeholder="Search name or specialization" oninput="renderDoctors()"></div>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Doctor</th><th>Specialization</th><th>Experience</th><th>Available Days</th><th>Dashboard Login</th><th>Action</th></tr></thead>
+                                    <tbody id="doctors-list-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Ambulance bookings ---------------- -->
+                    <section id="ambulance-bookings-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Ambulance Bookings</h1><p>Ambulance requests submitted by patients from the website. Dispatch a request once a vehicle has been sent.</p></div>
+                            <div class="page-actions"><button class="btn btn--outline" onclick="loadAmbulanceBookings()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Requests <span class="count" id="amb-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="amb-search" placeholder="Search patient, phone, address" oninput="renderAmbulance()"></div>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Patient</th><th>Contact</th><th>Address / Location</th><th>Emergency Type</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody id="amb-bookings-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- SOS alerts ---------------- -->
+                    <section id="sos-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>SOS Alerts</h1><p>Emergency alerts arrive here automatically with the caller's live location. Dispatching sends the nearest available ambulance, which the caller can follow on their phone.</p></div>
+                            <div class="page-actions"><button class="btn btn--outline" onclick="loadSos()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+                        <div class="ord-stats" id="sos-stats"></div>
+                        <div class="card">
+                            <div class="card-head"><h2>Live Emergency Map</h2><span class="ord-summary" id="sos-summary" style="margin: 0;"></span></div>
+                            <div class="card-body">
+                                <div class="sos-grid">
+                                    <div id="sos-admin-map"></div>
+                                    <div class="sos-list" id="sos-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head"><h2>Ambulance Fleet</h2></div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Vehicle</th><th>Driver</th><th>Status</th><th>Driver Link (opened on the driver's phone)</th><th>Action</th></tr></thead>
+                                    <tbody id="fleet-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head"><h2>Register an Ambulance</h2></div>
+                            <form class="dash-form" onsubmit="addAmbulanceUnit(event)">
+                                <div class="form-group"><label for="amb-vehicle">Vehicle number</label><input type="text" id="amb-vehicle" required placeholder="MH 12 AB 1234"></div>
+                                <div class="form-group"><label for="amb-driver">Driver name</label><input type="text" id="amb-driver" required placeholder="Driver name"></div>
+                                <div class="form-group"><label for="amb-phone">Driver phone</label><input type="tel" id="amb-phone" placeholder="Mobile number"></div>
+                                <div class="form-submit"><button class="btn" type="submit"><i class="fas fa-plus"></i> Add Ambulance</button></div>
+                            </form>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Medicine stock ---------------- -->
+                    <section id="medicine-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Medicine Stock</h1><p>A medicine with a price and "Show in patient store" ticked is sold on the patient website. Stock is reduced automatically when a patient orders.</p></div>
+                            <div class="page-actions">
+                                <button class="btn btn--outline" onclick="loadMedicines()"><i class="fas fa-rotate"></i> Refresh</button>
+                                <button class="btn" onclick="openMedicineForm()"><i class="fas fa-plus"></i> Add Medicine</button>
+                            </div>
+                        </div>
+                        <div class="ord-stats" id="med-stats"></div>
+                        <div id="med-alerts"></div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2><span id="med-list-title">Inventory</span> <span class="count" id="med-count">0</span></h2>
+                                <div class="card-tools"><button class="btn btn--sm btn--outline" id="med-show-all" style="display: none;" onclick="setMedFilter('all')"><i class="fas fa-xmark"></i> Show all medicines</button></div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Photo</th><th>Medicine</th><th>Price</th><th>In Stock</th><th>Alert Below</th><th>Expiry</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody id="med-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Medicine orders ---------------- -->
+                    <section id="orders-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Medicine Orders</h1><p>Each action moves an order one step: Confirm, Packed, Out for Delivery or Ready for Pickup, then Delivered or Collected. The patient is emailed at every step, and cancelling returns the medicines to stock. For a UPI order, verify the payment (UTR) in your UPI account before confirming.</p></div>
+                            <div class="page-actions feat-toolbar">
+                                <select class="field" id="ord-filter" onchange="renderOrders()">
+                                    <option value="open">Open orders</option>
+                                    <option value="new">New (to confirm)</option>
+                                    <option value="unpaid">Awaiting UPI payment</option>
+                                    <option value="preparing">Being prepared</option>
+                                    <option value="dispatch">Out for delivery / Ready for pickup</option>
+                                    <option value="done">Delivered / Collected</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                    <option value="refund">Refund due</option>
+                                    <option value="all">All orders</option>
+                                </select>
+                                <button class="btn btn--outline" onclick="loadOrders()"><i class="fas fa-rotate"></i> Refresh</button>
+                            </div>
+                        </div>
+                        <div class="ord-stats" id="ord-stats"></div>
+                        <div class="ord-summary" id="ord-summary"></div>
+                        <div id="ord-list"></div>
+                    </section>
+
+                    <!-- ---------------- Analytics ---------------- -->
+                    <section id="analytics-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Analytics</h1><p>Appointment volumes, busy hours and doctor workload for the selected period.</p></div>
+                            <div class="page-actions feat-toolbar">
+                                <input class="field" type="date" id="an-from" aria-label="From date"> <span>to</span> <input class="field" type="date" id="an-to" aria-label="To date">
+                                <button class="btn" onclick="loadAnalytics()">Apply</button>
+                                <button class="btn btn--outline" onclick="exportReport()"><i class="fas fa-file-csv"></i> Download CSV</button>
+                            </div>
+                        </div>
+                        <div class="an-stats" id="an-stats"></div>
+                        <div class="an-charts">
+                            <div class="card an-chart"><div class="card-head"><h2>Patients per day</h2></div><div class="canvas-wrap"><canvas id="an-chart-day"></canvas></div></div>
+                            <div class="card an-chart"><div class="card-head"><h2>By department</h2></div><div class="canvas-wrap"><canvas id="an-chart-dept"></canvas></div></div>
+                            <div class="card an-chart"><div class="card-head"><h2>Busy hours (appointments per time slot)</h2></div><div class="canvas-wrap"><canvas id="an-chart-hours"></canvas></div></div>
+                            <div class="card an-chart"><div class="card-head"><h2>Appointment status</h2></div><div class="canvas-wrap"><canvas id="an-chart-status"></canvas></div></div>
+                            <div class="card an-chart wide">
+                                <div class="card-head"><h2>Doctor workload</h2></div>
+                                <div class="table-container">
+                                    <table>
+                                        <thead><tr><th>Doctor</th><th>Appointments</th><th>Completed</th></tr></thead>
+                                        <tbody id="an-doctors"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Notifications ---------------- -->
+                    <section id="notifications-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Notifications</h1><p>Log of the emails sent to patients and doctors - the latest 100 messages.</p></div>
+                            <div class="page-actions">
+                                <button class="btn btn--outline" onclick="retryEmails()"><i class="fas fa-rotate"></i> Retry failed emails</button>
+                                <button class="btn" onclick="sendRemindersNow()"><i class="fas fa-bell"></i> Send due reminders</button>
+                            </div>
+                        </div>
+                        <div id="notif-config"></div>
+                        <div class="card">
+                            <div class="card-head"><h2>Email Log</h2></div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Time</th><th>Channel</th><th>To</th><th>Message</th><th>Status</th></tr></thead>
+                                    <tbody id="notif-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </main>
         </div>
     </div>
 
-    <script>
-        // --- Utilities ---
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-        // --- Mobile Sidebar Toggle ---
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('show');
-            document.getElementById('sidebar-overlay').classList.toggle('show');
-        }
-
-        // --- Authentication Logic ---
-        function toggleAuth(type) {
-            if(type === 'register') {
-                document.getElementById('login-form').style.display = 'none';
-                document.getElementById('register-form').style.display = 'block';
-            } else {
-                document.getElementById('register-form').style.display = 'none';
-                document.getElementById('login-form').style.display = 'block';
-            }
-        }
-
-        function validateInput(id, errorId, validationType) {
-            const val = document.getElementById(id).value.trim();
-            const errorElement = document.getElementById(errorId);
-            let isValid = true;
-            if (validationType === 'email') isValid = emailRegex.test(val);
-            else if (validationType === 'password') isValid = val.length >= 6;
-            else if (validationType === 'name') isValid = val.length > 2;
-            errorElement.style.display = isValid ? 'none' : 'block';
-            return isValid;
-        }
-
-function handleRegister() {
-            const isNameValid = validateInput('reg-name', 'reg-name-error', 'name');
-            const isEmailValid = validateInput('reg-email', 'reg-email-error', 'email');
-            const isPassValid = validateInput('reg-password', 'reg-pass-error', 'password');
-
-            if(isNameValid && isEmailValid && isPassValid) {
-                const email = document.getElementById('reg-email').value.trim();
-                const pass = document.getElementById('reg-password').value;
-                const name = document.getElementById('reg-name').value.trim();
-
-                let formData = new FormData();
-                formData.append("name", name);
-                formData.append("email", email);
-                formData.append("password", pass);
-
-                fetch("adminRegister.php", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(res => res.text())
-                .then(data => {
-                    console.log("Register Response:", data); // Debugging ke liye
-                    if(data.trim() === "success") {
-                        alert('Admin Registration Successful! Please login.');
-                        toggleAuth('login');
-                    } else {
-                        alert("Server Response: " + data);
-                    }
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Registration connection failed.");
-                });
-            }
-        }
-
-        function handleLogin() {
-            const isEmailValid = validateInput('login-email', 'login-email-error', 'email');
-            const isPassValid = validateInput('login-password', 'login-pass-error', 'password');
-
-            if(isEmailValid && isPassValid) {
-                const email = document.getElementById('login-email').value.trim();
-                const pass = document.getElementById('login-password').value;
-
-                // Local Fallback for Demo Admin
-                if(email === 'admin@demo.com' && pass === '123456') {
-                    document.getElementById('admin-name-display').innerText = 'Super Admin';
-                    document.getElementById('auth-view').style.display = 'none';
-                    document.getElementById('dashboard-view').style.display = 'flex';
-                    loadBookings();
-                    loadRegisteredUsers();
-                    loadAddedDoctors();
-                    loadAmbulanceBookings();
-                    return;
-                }
-
-                let formData = new FormData();
-                formData.append("email", email);
-                formData.append("password", pass);
-
-                fetch("adminLogin.php", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(res => res.text())
-                .then(data => {
-                    console.log("Login Response from Server:", data); // Debugging log
-                    try {
-                        let res = JSON.parse(data);
-                        if(res.status === "success") {
-                            document.getElementById('admin-name-display').innerText = res.name;
-                            document.getElementById('auth-view').style.display = 'none';
-                            document.getElementById('dashboard-view').style.display = 'flex';
-                            
-                            // Load all dashboard modules safely
-                            if(typeof loadBookings === 'function') loadBookings();
-                            if(typeof loadRegisteredUsers === 'function') loadRegisteredUsers();
-                            if(typeof loadAddedDoctors === 'function') loadAddedDoctors();
-                            if(typeof loadAmbulanceBookings === 'function') loadAmbulanceBookings();
-                            
-                            alert("Admin Login Success!");
-                        }
-                    } catch(e) {
-                        // Agar response JSON nahi hai (koi PHP Warning hai), toh exact error dikhayega
-                        alert("Auth Message: " + data);
-                    }
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Server Connection Error");
-                });
-            }
-        }
-        function handleLogout() {
-            document.getElementById('dashboard-view').style.display = 'none';
-            document.getElementById('auth-view').style.display = 'flex';
-            document.getElementById('login-password').value = '';
-        }
-
-        // --- Dashboard Navigation Logic ---
-        function switchTab(tabId, element) {
-            const sections = document.querySelectorAll('.content-section');
-            sections.forEach(sec => sec.classList.remove('active'));
-            const links = document.querySelectorAll('.nav-links li');
-            links.forEach(link => link.classList.remove('active'));
-
-            document.getElementById(tabId).classList.add('active');
-            element.classList.add('active');
-
-            if(window.innerWidth <= 992) {
-                document.getElementById('sidebar').classList.remove('show');
-                document.getElementById('sidebar-overlay').classList.remove('show');
-            }
-
-            if(tabId === 'booking-tab') loadBookings();
-            else if (tabId === 'registered-users-tab') loadRegisteredUsers();
-            else if (tabId === 'doctor-list-tab') loadAddedDoctors();
-            else if (tabId === 'ambulance-bookings-tab') loadAmbulanceBookings(); 
-        }
-
-        // --- DOCTOR BOOKINGS LOGIC ---
-        // --- DOCTOR BOOKINGS LOGIC (REAL-TIME DATABASE) ---
-        function loadBookings() {
-            // Ab data LocalStorage se nahi, sidha phpMyAdmin se aayega
-            fetch("getBookings.php")
-            .then(res => res.json())
-            .then(allBookings => {
-                const tbody = document.getElementById('bookings-table-body');
-                tbody.innerHTML = '';
-
-                if(allBookings.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No appointments booked yet.</td></tr>';
-                    return;
-                }
-
-                allBookings.forEach(data => {
-                    let statusBadge = '';
-                    let actionButtons = '';
-                    let currentStatus = data.status || 'Pending';
-
-                    if (currentStatus === 'Accepted') {
-                        statusBadge = `<span class="badge accepted">Accepted</span>`;
-                        actionButtons = `<button class="btn-sm" style="background: #10B981;" onclick="updateDocStatus(${data.id}, 'Confirmed')">Complete</button>`;
-                    } else if (currentStatus === 'Confirmed' || currentStatus === 'Completed') {
-                        statusBadge = `<span class="badge confirmed">Confirmed</span>`;
-                        actionButtons = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteDocBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
-                    } else if (currentStatus === 'Rejected' || currentStatus === 'Cancelled') {
-                        statusBadge = `<span class="badge danger">${currentStatus}</span>`;
-                        actionButtons = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteDocBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
-                    } else {
-                        statusBadge = `<span class="badge pending">Pending</span>`;
-                        actionButtons = `
-                            <button class="btn-sm" style="background: #3b82f6;" onclick="updateDocStatus(${data.id}, 'Accepted')">Accept</button>
-                            <button class="btn-sm" style="background: var(--danger);" onclick="updateDocStatus(${data.id}, 'Rejected')">Reject</button>
-                        `;
-                    }
-
-                    tbody.innerHTML += `
-                        <tr>
-                            <td style="font-weight: 500;">${data.patient_name || 'N/A'}</td>
-                            <td>Doctor ID: ${data.doctor_id}</td>
-                            <td>${data.appointment_date} | ${data.time_slot}</td>
-                            <td>${data.patient_phone || 'N/A'}</td>
-                            <td>${statusBadge}</td>
-                            <td>${actionButtons}</td>
-                        </tr>
-                    `;
-                });
-            });
-        }
-
-        function updateDocStatus(id, newStatus) {
-            // Sidha database mein status update karega
-            fetch(`updateBookingStatus.php?id=${id}&status=${newStatus}`)
-            .then(res => res.text())
-            .then(data => {
-                alert(data);
-                loadBookings(); // Table refresh karein
-            });
-        }
-
-        function deleteDocBooking(id) {
-            if(confirm("Are you sure you want to permanently delete this booking from phpMyAdmin?")) {
-                // Database se row delete karne ke liye fetch request
-                fetch("deleteBooking.php?id=" + id)
-                .then(res => res.text())
-                .then(data => {
-                    alert(data); // "Booking Deleted Successfully" dikhayega
-                    loadBookings(); // Table ko turant refresh karega
-                })
-                .catch(err => {
-                    console.log("Error:", err);
-                    alert("Server error, could not delete.");
-                });
-            }
-        }
-
-        // --- NEW REAL-TIME USERS LOGIC ---
-   function loadRegisteredUsers(){
-
-fetch("getUsers.php")
-
-.then(res=>res.json())
-
-.then(users=>{
-
-const tbody=
-document.getElementById(
-"users-table-body"
-);
-
-tbody.innerHTML="";
-
-if(users.length==0){
-
-tbody.innerHTML=
-"<tr><td colspan='5'>No patients registered</td></tr>";
-
-return;
-
-}
-
-users.forEach(user=>{
-
-tbody.innerHTML +=`
-
-<tr>
-
-<td>
-<img src="https://ui-avatars.com/api/?name=${user.name}"
-class="user-record-avatar">
-</td>
-
-<td>${user.name}</td>
-
-<td>${user.email}</td>
-
-<td>
-<span class="badge manual">
-Database
-</span>
-</td>
-
-<td>
-Registered User
-</td>
-
-</tr>
-
-`;
-
-});
-
-});
-
-}
-
-        function clearAllUsers() {
-            if(confirm("CRITICAL WARNING: This will permanently delete all index page user accounts from localStorage. Continue?")) {
-                localStorage.removeItem('smartHealthDB');
-                localStorage.removeItem('smartHealthUser'); // Destroys active user session if running
-                loadRegisteredUsers();
-                alert("Patient user database cleared successfully.");
-            }
-        }
-
-       // --- AMBULANCE BOOKINGS LOGIC (REAL-TIME DATABASE) ---
-        function loadAmbulanceBookings(){
-            fetch("getAmbulance.php")
-            .then(res => res.json())
-            .then(ambBookings => {
-                const tbody = document.getElementById('amb-bookings-table-body');
-                tbody.innerHTML = '';
-
-                if(ambBookings.length == 0){
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light);">No ambulance bookings found.</td></tr>';
-                    return;
-                }
-
-                ambBookings.forEach(data => {
-                    let currentStatus = data.status || 'Pending';
-                    let statusBadge = `<span class="badge pending">Pending</span>`;
-                    let actionButton = `<button class="btn-sm" style="background:#3b82f6" onclick="updateAmbStatus(${data.id}, 'Dispatched')">Accept & Dispatch</button>`;
-                    
-                    if(currentStatus === 'Dispatched') {
-                        statusBadge = `<span class="badge confirmed" style="background:#dcfce7; color:#16a34a;">Dispatched</span>`;
-                        actionButton = `<span style="color:var(--text-light); font-size:12px; margin-right: 10px;"><i class="fas fa-check"></i> Dispatched</span>`;
-                    }
-
-                    // YE NAYA DELETE BUTTON ADD KIYA HAI
-                    let deleteButton = `<button class="btn-sm" style="background: #fee2e2; color: var(--danger);" onclick="deleteAmbBooking(${data.id})"><i class="fas fa-trash"></i> Delete</button>`;
-
-                    tbody.innerHTML += `
-                    <tr>
-                        <td>${data.patient_name}</td>
-                        <td>${data.phone}</td>
-                        <td>${data.address}</td>
-                        <td>${data.emergency_type}</td>
-                        <td>${statusBadge}</td>
-                        <td>
-                            <div style="display: flex; align-items: center; gap: 5px;">
-                                ${actionButton}
-                                ${deleteButton}
-                            </div>
-                        </td>
-                    </tr>`;
-                });
-            });
-        }
-
-        function updateAmbStatus(id, newStatus) {
-            // Sidha database table ko update karega
-            fetch(`updateAmbulanceStatus.php?id=${id}&status=${newStatus}`)
-            .then(res => res.text())
-            .then(data => {
-                alert(data);
-                loadAmbulanceBookings(); // Live refresh
-            })
-            .catch(err => console.log("Error updating ambulance:", err));
-        }
-     function deleteAmbBooking(id) {
-            if(confirm("Are you sure you want to permanently delete this ambulance record from phpMyAdmin?")) {
-                // Database se connect karne ke liye fetch API hit karein
-                fetch("deleteAmbulance.php?id=" + id)
-                .then(res => res.text())
-                .then(data => {
-                    alert(data); // "Ambulance Record Deleted Successfully" ka message aayega
-                    loadAmbulanceBookings(); // Table refresh karein
-                })
-                .catch(err => {
-                    console.log("Error deleting ambulance:", err);
-                    alert("Server error, could not delete.");
-                });
-            }
-        }
-function removeDoctor(id) {
-            if(confirm("Are you sure you want to remove this doctor?")) {
-                // Calls your deleteDoctor.php file using a GET request
-                fetch("deleteDoctor.php?id=" + id)
-                .then(res => res.text())
-                .then(data => {
-                    alert(data); // Shows "Doctor Removed" or "Error"
-                    loadAddedDoctors(); // Refreshes the table automatically
-                })
-                .catch(err => {
-                    console.log("Error:", err);
-                    alert("Failed to connect to the server.");
-                });
-            }
-        }
-        // --- DOCTOR MANAGEMENT LOGIC ---
-     
-
-function loadAddedDoctors(){
-
-fetch("getDoctors.php")
-
-.then(res=>res.json())
-
-.then(doctors=>{
-
-const tbody =
-document.getElementById(
-"doctors-list-table-body"
-);
-
-tbody.innerHTML="";
-
-if(doctors.length==0){
-
-tbody.innerHTML=
-"<tr><td colspan='4'>No doctors added to the system yet.</td></tr>";
-
-return;
-
-}
-
-doctors.forEach(doc=>{
-
-tbody.innerHTML +=`
-
-<tr>
-
-<td>
-<img src="${doc.image}"
-class="doc-avatar"
-onerror="this.src='https://ui-avatars.com/api/?name=${doc.doctor_name}'">
-</td>
-
-<td>${doc.doctor_name}</td>
-
-<td>${doc.specialization}</td>
-
-<td>
-
-<button
-class="btn-sm"
-style="background:#ef476f"
-onclick="removeDoctor(${doc.id})">
-
-Remove
-
-</button>
-
-</td>
-
-</tr>
-
-`;
-
-});
-
-});
-
-}
-
- function addDoctor(event){
-
-event.preventDefault();
-
-const formData=new FormData();
-
-formData.append(
-"doctor_name",
-document.getElementById("doc-name").value
-);
-
-formData.append(
-"specialization",
-document.getElementById("doc-spec").value
-);
-
-formData.append(
-"experience",
-document.getElementById("doc-exp").value
-);
-
-formData.append(
-"days",
-document.getElementById("doc-days").value
-);
-
-formData.append(
-"image",
-document.getElementById("doc-img-file").files[0]
-);
-
-fetch("addDoctor.php",{
-method:"POST",
-body:formData
-})
-
-.then(r=>r.text())
-
-.then(data=>{
-
-alert(data);
-
-loadAddedDoctors();
-
-document.getElementById(
-"add-doc-form"
-).reset();
-
-});
-
-}
-        function clearAllDoctors() {
-            if(confirm("WARNING: This will delete ALL doctors from the system. Use this to clear old dummy data. Proceed?")) {
-                localStorage.removeItem('smartHealthDoctors');
-                loadAddedDoctors();
-                alert("Database cleared! Go to 'Add Doctor' to start fresh.");
-            }
-        }
-    </script>
+    <!-- Doctor Records Modal -->
+    <div class="modal" id="doctorRecordsModal" style="display:none;" onclick="if(event.target===this) closeDoctorRecords()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rec-title">Doctor Records</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeDoctorRecords()">&times;</button>
+            </div>
+            <div class="rec-tabs">
+                <button class="rec-tab active" id="rec-tab-pending" onclick="showDoctorRecords('pending')">Pending (0)</button>
+                <button class="rec-tab" id="rec-tab-completed" onclick="showDoctorRecords('completed')">Completed (0)</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Patient</th><th>Phone</th><th>Date</th><th>Time Slot</th><th>Token</th><th>Status</th></tr></thead>
+                    <tbody id="rec-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit Medicine Modal (opened by "Add Medicine" or a row's "Edit") -->
+    <div class="modal" id="medicineModal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="med-form-title">Add Medicine</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeMedicineForm()">&times;</button>
+            </div>
+            <form class="dash-form" id="med-form" onsubmit="saveMedicine(event)">
+                <input type="hidden" id="med-id">
+                <div class="form-group"><label for="med-name">Medicine name</label><input type="text" id="med-name" required placeholder="Paracetamol 500mg"></div>
+                <div class="form-group"><label for="med-category">Category</label>
+                    <select id="med-category">
+                        <option>General</option><option>Fever &amp; Pain</option><option>Cold &amp; Cough</option><option>Stomach &amp; Digestion</option>
+                        <option>Diabetes</option><option>Heart &amp; BP</option><option>Skin Care</option><option>Vitamins &amp; Supplements</option>
+                        <option>First Aid</option><option>Baby Care</option>
+                    </select>
+                </div>
+                <div class="form-group"><label for="med-price">Selling price <small>(₹ per unit)</small></label><input type="number" id="med-price" min="0" step="0.01" required placeholder="e.g. 35.00"></div>
+                <div class="form-group"><label for="med-unit">Unit</label><input type="text" id="med-unit" value="strips" placeholder="strips / bottles / vials"></div>
+                <div class="form-group"><label for="med-stock">Current stock</label><input type="number" id="med-stock" min="0" required placeholder="e.g. 100"></div>
+                <div class="form-group"><label for="med-reorder">Alert when stock falls to</label><input type="number" id="med-reorder" min="0" required placeholder="e.g. 20"></div>
+                <div class="form-group"><label for="med-expiry">Expiry date <small>(optional)</small></label><input type="date" id="med-expiry"></div>
+                <div class="form-group"><label for="med-image">Product photo <small>(JPG / PNG / WEBP, max 3 MB)</small></label><input type="file" id="med-image" accept="image/jpeg,image/png,image/webp,image/gif"></div>
+                <div class="form-group span-2"><label for="med-desc">Description <small>(shown to patients)</small></label><input type="text" id="med-desc" maxlength="500" placeholder="e.g. For fever and mild pain. 10 tablets per strip."></div>
+                <div class="form-group span-2">
+                    <label class="med-check"><input type="checkbox" id="med-sale" checked> Show in patient store (patients can order it)</label>
+                </div>
+                <div class="form-submit">
+                    <button class="btn" type="submit" id="med-save">Save Medicine</button>
+                    <button class="btn btn--outline" type="button" onclick="closeMedicineForm()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Doctor Modal (opened by "Add Doctor" in the sidebar or on the Doctors page) -->
+    <div class="modal" id="addDoctorModal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Doctor</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeAddDoctor()">&times;</button>
+            </div>
+            <form class="dash-form" id="add-doc-form" onsubmit="addDoctor(event)">
+                <div class="form-legend">Professional details</div>
+                <div class="form-group">
+                    <label for="doc-name">Doctor name</label>
+                    <input type="text" id="doc-name" required placeholder="Dr. John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="doc-spec">Specialization</label>
+                    <select id="doc-spec" required>
+                        <option value="">Select department</option>
+                        <option value="Cardiology">Cardiology (Heart)</option>
+                        <option value="Dermatology">Dermatology (Skin)</option>
+                        <option value="Dentistry">Dentistry (Teeth)</option>
+                        <option value="Oncology">Oncology (Cancer)</option>
+                        <option value="Neurology">Neurology (Brain)</option>
+                        <option value="Orthopedics">Orthopedics (Bones)</option>
+                        <option value="Pediatrics">Pediatrics (Child)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="doc-exp">Experience (years)</label>
+                    <input type="number" id="doc-exp" min="0" max="70" required placeholder="e.g. 5">
+                </div>
+                <div class="form-group">
+                    <label for="doc-days">Available days</label>
+                    <input type="text" id="doc-days" required placeholder="Mon - Fri">
+                </div>
+                <div class="form-group span-2">
+                    <label for="doc-img-file">Profile photograph</label>
+                    <input type="file" id="doc-img-file" accept="image/*" required>
+                </div>
+
+                <div class="form-legend">Doctor dashboard login <span style="text-transform: none; letter-spacing: 0; font-weight: 400;">(optional)</span></div>
+                <div class="form-group">
+                    <label for="doc-email">Login email</label>
+                    <input type="email" id="doc-email" autocomplete="off" placeholder="doctor@hospital.com">
+                </div>
+                <div class="form-group">
+                    <label for="doc-password">Login password <small>(min. 6 characters)</small></label>
+                    <input type="password" id="doc-password" minlength="6" autocomplete="new-password">
+                </div>
+
+                <div class="form-submit">
+                    <button class="btn" type="submit" id="doc-save"><i class="fas fa-check"></i> Save Doctor Profile</button>
+                    <button class="btn btn--outline" type="button" onclick="closeAddDoctor()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Administrator Modal (topbar shield button; only a signed-in administrator can create one) -->
+    <div class="modal" id="adminModal" style="display:none;">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>Add Administrator</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeAdminModal()">&times;</button>
+            </div>
+            <form class="dash-form" id="register-form" style="grid-template-columns: 1fr;" onsubmit="handleRegister(event)" novalidate>
+                <div class="form-group">
+                    <label for="reg-name">Full name</label>
+                    <input type="text" id="reg-name" placeholder="Full name" autocomplete="off">
+                    <div class="error-msg" id="reg-name-error">Enter the full name.</div>
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email address</label>
+                    <input type="email" id="reg-email" placeholder="name@hospital.com" autocomplete="off">
+                    <div class="error-msg" id="reg-email-error">Enter a valid email address.</div>
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password <small>(min. 8 characters)</small></label>
+                    <input type="password" id="reg-password" autocomplete="new-password">
+                    <div class="error-msg" id="reg-pass-error">Password must be at least 8 characters.</div>
+                </div>
+                <div class="form-submit">
+                    <button class="btn" type="submit" id="reg-btn">Create Administrator</button>
+                    <button class="btn btn--outline" type="button" onclick="closeAdminModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Doctor Modal -->
+    <div class="modal" id="editDoctorModal" style="display:none;" onclick="if(event.target===this) closeEditModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Doctor Details</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form class="dash-form" id="edit-doc-form" onsubmit="saveEditDoctor(event)">
+                <input type="hidden" id="edit-doc-id">
+                <div class="form-group span-2">
+                    <label for="edit-doc-name">Doctor name</label>
+                    <input type="text" id="edit-doc-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-doc-spec">Specialization</label>
+                    <select id="edit-doc-spec" required>
+                        <option value="Cardiology">Cardiology (Heart)</option>
+                        <option value="Dermatology">Dermatology (Skin)</option>
+                        <option value="Dentistry">Dentistry (Teeth)</option>
+                        <option value="Oncology">Oncology (Cancer)</option>
+                        <option value="Neurology">Neurology (Brain)</option>
+                        <option value="Orthopedics">Orthopedics (Bones)</option>
+                        <option value="Pediatrics">Pediatrics (Child)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-doc-exp">Experience (years)</label>
+                    <input type="number" id="edit-doc-exp" min="0" max="70" required>
+                </div>
+                <div class="form-group span-2">
+                    <label for="edit-doc-days">Available days</label>
+                    <input type="text" id="edit-doc-days" required placeholder="e.g. Mon - Fri">
+                </div>
+                <div class="form-group">
+                    <label for="edit-doc-email">Login email</label>
+                    <input type="email" id="edit-doc-email" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="edit-doc-password">New password <small>(blank = keep)</small></label>
+                    <input type="password" id="edit-doc-password" minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form-group span-2">
+                    <label for="edit-doc-image">Replace photograph <small>(optional)</small></label>
+                    <input type="file" id="edit-doc-image" accept="image/*">
+                </div>
+                <div class="form-submit">
+                    <button type="submit" class="btn" id="edit-doc-save">Save Changes</button>
+                    <button type="button" class="btn btn--outline" onclick="closeEditModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="popups.js?v=1"></script>
+    <script src="admin.js?v=4"></script>
+    <script src="admin-features.js?v=21"></script>
 </body>
 </html>

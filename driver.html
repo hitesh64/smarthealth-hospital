@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHealth - Ambulance Driver</title>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" rel="stylesheet">
+    <link href="popups.css?v=1" rel="stylesheet">
+    <link href="features.css?v=5" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+        body { background: #f8fafc; color: #0f172a; }
+        .top { background: #b91c1c; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .top h1 { font-size: 17px; }
+        .top span { font-size: 13px; opacity: .9; }
+        .pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; background: rgba(255,255,255,.2); }
+        .wrap { max-width: 640px; margin: 0 auto; padding: 14px; }
+        .box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+        .box h2 { font-size: 16px; margin-bottom: 6px; }
+        .box p { color: #475569; font-size: 14px; margin-bottom: 6px; }
+        .job { border-left: 6px solid #dc2626; }
+        #map { height: 320px; border-radius: 12px; margin-bottom: 14px; background: #e2e8f0; }
+        .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .row > * { flex: 1; min-width: 130px; padding: 13px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+                   font-weight: 600; font-size: 14px; text-align: center; text-decoration: none; color: #0f172a; cursor: pointer; }
+        .row .go { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .row .ok { background: #16a34a; border-color: #16a34a; color: #fff; }
+        .row .red { background: #dc2626; border-color: #dc2626; color: #fff; }
+        .hint { font-size: 12px; color: #64748b; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="top">
+        <div><h1><i class="fas fa-truck-medical"></i> <span id="vehicle">Ambulance</span></h1><span id="driverName"></span></div>
+        <span class="pill" id="state">Connecting…</span>
+    </div>
+    <div class="wrap">
+        <div class="box" id="gps">Starting GPS…</div>
+        <div id="jobBox"></div>
+        <div id="map"></div>
+        <div class="box">
+            <h2>Controls</h2>
+            <div class="row">
+                <button id="offlineBtn" onclick="setState('Offline')">Go offline</button>
+                <button id="simBtn" onclick="toggleSim()">Demo: simulate driving</button>
+            </div>
+            <p class="hint">Keep this page open while on duty. Your position is shared with the hospital and with the person who pressed SOS.
+            "Simulate driving" is for demos on a laptop: it moves this ambulance along a straight line to the patient instead of using GPS.</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="popups.js?v=1"></script>
+    <script>
+        const token = new URLSearchParams(location.search).get('t') || '';
+        let map, ambMarker, patMarker, job = null, pos = null, simTimer = null, fittedFor = null, watchId = null;
+
+        function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        function pin(kind, icon) { return L.divIcon({ className: '', html: `<div class="map-pin ${kind}"><i class="fas ${icon}"></i></div>`, iconSize: [34, 34], iconAnchor: [17, 17] }); }
+
+        function api(action, data) {
+            const fd = new FormData();
+            fd.append('t', token);
+            Object.keys(data || {}).forEach(k => fd.append(k, data[k]));
+            return fetch('sosApi.php?action=' + action, { method: 'POST', body: fd }).then(r => r.json()).then(render);
+        }
+
+        function render(data) {
+            if (data.status !== 'success') {
+                document.querySelector('.wrap').innerHTML = `<div class="box"><h2>Invalid driver link</h2><p>Ask the hospital admin for your ambulance link (Admin panel → SOS Alerts → Fleet).</p></div>`;
+                document.getElementById('state').textContent = 'No access';
+                return;
+            }
+            const amb = data.ambulance;
+            job = data.job;
+            document.getElementById('vehicle').textContent = amb.vehicle_no;
+            document.getElementById('driverName').textContent = 'Driver: ' + amb.driver_name;
+            document.getElementById('state').textContent = amb.status;
+            document.getElementById('offlineBtn').style.display = job ? 'none' : '';
+
+            if (!map) {
+                map = L.map('map').setView([amb.lat ?? data.hospital.lat, amb.lng ?? data.hospital.lng], 14);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+                setTimeout(() => map.invalidateSize(), 200);
+            }
+            if (amb.lat !== null) {
+                const p = [parseFloat(amb.lat), parseFloat(amb.lng)];
+                ambMarker ? ambMarker.setLatLng(p) : (ambMarker = L.marker(p, { icon: pin('amb', 'fa-truck-medical') }).addTo(map));
+                if (!map.getBounds().contains(p)) map.panTo(p); // keep the ambulance on screen as it moves
+            }
+
+            const box = document.getElementById('jobBox');
+            if (!job) {
+                box.innerHTML = `<div class="box"><h2>No active emergency</h2><p>You will see the patient's location here as soon as the hospital dispatches you.</p></div>`;
+                if (patMarker) { map.removeLayer(patMarker); patMarker = null; }
+                fittedFor = null;
+                return;
+            }
+            const hasLoc = job.lat !== null;
+            box.innerHTML = `<div class="box job">
+                <h2><i class="fas fa-triangle-exclamation" style="color:#dc2626;"></i> Emergency #${job.id} — ${esc(job.status)}</h2>
+                <p><b>${esc(job.name || 'Unknown caller')}</b> ${job.phone ? '· ' + esc(job.phone) : ''}</p>
+                <p>${hasLoc ? 'Patient location is on the map.' : 'Location not shared — call the patient.'}</p>
+                <div class="row">
+                    ${hasLoc ? `<a class="go" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}&travelmode=driving"><i class="fas fa-diamond-turn-right"></i> Navigate</a>` : ''}
+                    ${job.phone ? `<a href="tel:${esc(job.phone)}"><i class="fas fa-phone"></i> Call patient</a>` : ''}
+                    ${job.status === 'Dispatched' ? `<button class="ok" onclick="setState('Arrived')">Arrived</button>` : `<button class="red" onclick="setState('Resolved')">Complete emergency</button>`}
+                </div></div>`;
+            if (hasLoc) {
+                const p = [parseFloat(job.lat), parseFloat(job.lng)];
+                patMarker ? patMarker.setLatLng(p) : (patMarker = L.marker(p, { icon: pin('me', 'fa-person') }).addTo(map));
+                if (fittedFor !== job.id && ambMarker) {
+                    map.fitBounds([p, ambMarker.getLatLng()], { padding: [40, 40], maxZoom: 16 });
+                    fittedFor = job.id;
+                }
+            }
+        }
+
+        function setState(state) {
+            if (state === 'Offline') stopGps();
+            api('driverStatus', { state });
+        }
+
+        function sendPosition(lat, lng) {
+            pos = { lat, lng };
+            api('driverLocation', { lat, lng }).catch(() => {});
+        }
+
+        // ---- real GPS
+        let lastSent = 0;
+        function startGps() {
+            const gps = document.getElementById('gps');
+            if (!navigator.geolocation) { gps.textContent = 'This device has no GPS. Use "simulate driving" for a demo.'; return; }
+            watchId = navigator.geolocation.watchPosition(p => {
+                gps.innerHTML = `<i class="fas fa-location-crosshairs" style="color:#16a34a;"></i> GPS on — sharing live location (±${Math.round(p.coords.accuracy)} m)`;
+                if (simTimer || Date.now() - lastSent < 4000) return;
+                lastSent = Date.now();
+                sendPosition(p.coords.latitude, p.coords.longitude);
+            }, () => {
+                gps.innerHTML = '<i class="fas fa-triangle-exclamation" style="color:#dc2626;"></i> Location permission denied. Allow location for this page, or use "simulate driving" for a demo.';
+            }, { enableHighAccuracy: true, maximumAge: 3000 });
+        }
+        function stopGps() {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            document.getElementById('gps').innerHTML = 'Offline. <a href="" onclick="location.reload()">Go online again</a>';
+        }
+
+        // ---- demo mode: start ~2 km away from the patient and drive towards them
+        function toggleSim() {
+            const btn = document.getElementById('simBtn');
+            if (simTimer) { clearInterval(simTimer); simTimer = null; btn.textContent = 'Demo: simulate driving'; return; }
+            if (!job || job.lat === null) return shToast('Simulation needs an active emergency with a patient location. Dispatch this ambulance from the admin panel first.', 'error');
+            const target = { lat: parseFloat(job.lat), lng: parseFloat(job.lng) };
+            let cur = { lat: target.lat + 0.014, lng: target.lng + 0.012 };
+            btn.textContent = 'Stop simulation';
+            simTimer = setInterval(() => {
+                cur = { lat: cur.lat + (target.lat - cur.lat) * 0.12, lng: cur.lng + (target.lng - cur.lng) * 0.12 };
+                sendPosition(cur.lat, cur.lng);
+                if (Math.abs(cur.lat - target.lat) < 0.0002) { clearInterval(simTimer); simTimer = null; btn.textContent = 'Demo: simulate driving'; }
+            }, 2000);
+        }
+
+        api('driver').then(startGps);
+        setInterval(() => api('driver').catch(() => {}), 5000);
+    </script>
+</body>
+</html>

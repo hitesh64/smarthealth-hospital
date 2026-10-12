@@ -1,20 +1,29 @@
 <?php
-include "config.php";
+include "lib.php";
 
-$name = mysqli_real_escape_string($conn, $_POST['name']);
-$email = mysqli_real_escape_string($conn, $_POST['email']);
-$password = password_hash($_POST['password'], PASSWORD_BCRYPT);
-
-$check = mysqli_query($conn, "SELECT * FROM admins WHERE email='$email'");
-
-if(mysqli_num_rows($check) > 0) {
-    echo "Admin email already registered!";
-} else {
-    $sql = "INSERT INTO admins (name, email, password) VALUES ('$name', '$email', '$password')";
-    if(mysqli_query($conn, $sql)) {
-        echo "success";
-    } else {
-        echo "Error: " . mysqli_error($conn);
-    }
+// A new administrator can only be created by an administrator who is signed in.
+// The single exception is a brand-new installation with no administrator at all.
+$first = (int)db_one("SELECT COUNT(*) AS c FROM admins")['c'] === 0;
+if (!$first && !is_admin()) {
+    http_response_code(401);
+    echo "Error: Only a signed-in administrator can create administrator accounts.";
+    exit;
 }
+
+$name = post('name');
+$email = post('email');
+$password = $_POST['password'] ?? '';
+
+if (strlen($name) < 3 || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
+    echo "Error: Enter a name, a valid email and a password of at least 8 characters.";
+    exit;
+}
+
+if (db_one("SELECT id FROM admins WHERE email=?", "s", [$email])) {
+    echo "Admin email already registered!";
+    exit;
+}
+
+db_run("INSERT INTO admins (name, email, password) VALUES (?,?,?)", "sss", [$name, $email, password_hash($password, PASSWORD_BCRYPT)]);
+echo "success";
 ?>

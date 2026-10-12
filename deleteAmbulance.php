@@ -1,13 +1,13 @@
 <?php
-include "config.php";
+include "lib.php";
+require_admin_text();
 
-$id = $_GET['id'];
-
-$sql = "DELETE FROM ambulance WHERE id='$id'";
-
-if(mysqli_query($conn, $sql)){
-    echo "Ambulance Record Deleted Successfully";
-} else {
-    echo "Error: " . mysqli_error($conn);
+$id = intval($_GET['id'] ?? 0);
+if (!$id) {
+    echo "Error: No record ID provided.";
+    exit;
 }
+
+db_run("DELETE FROM ambulance WHERE id=?", "i", [$id]);
+echo "Ambulance Record Deleted Successfully";
 ?>

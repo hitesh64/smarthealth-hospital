@@ -1,15 +1,15 @@
 <?php
-include "config.php";
+include "lib.php";
 
-$email = mysqli_real_escape_string($conn, $_POST['email']);
-$password = $_POST['password'];
+$email = post('email');
+$password = $_POST['password'] ?? '';
 
-$sql = "SELECT * FROM admins WHERE email='$email'";
-$result = mysqli_query($conn, $sql);
+$row = db_one("SELECT * FROM admins WHERE email=?", "s", [$email]);
 
-if(mysqli_num_rows($result) > 0) {
-    $row = mysqli_fetch_assoc($result);
-    if(password_verify($password, $row['password'])) {
+if ($row) {
+    if (password_verify($password, $row['password'])) {
+        session_regenerate_id(true);
+        $_SESSION['admin_email'] = $row['email'];
         echo json_encode([
             "status" => "success",
             "name" => $row['name'],

@@ -1,0 +1,112 @@
+/* My Appointments page (patient site): tabs, appointment cards with a status tracker, ambulance requests.
+   Sizes are in rem because the page sits inside the zoomed app container. */
+
+.ap-head { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin-bottom: 18px; animation: dashRise .45s var(--rise) both; }
+.ap-head h2 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.025em; color: var(--ink-strong); }
+.ap-head p { margin-top: 3px; font-size: 0.9rem; color: var(--ink-soft); }
+.ap-new { width: auto; display: inline-flex; align-items: center; gap: 9px; padding: 11px 20px; border-radius: 11px; }
+.ap-new i { transition: transform .3s var(--rise); }
+.ap-new:hover i { transform: rotate(90deg); }
+
+/* tabs: the white pill slides to the chosen one */
+.ap-tabs { position: relative; display: inline-flex; gap: 4px; max-width: 100%; padding: 5px; margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; border-radius: 14px; background: var(--bg-tertiary); border: 1px solid var(--line); animation: dashRise .45s var(--rise) .06s both; }
+.ap-tabs::-webkit-scrollbar { display: none; }
+.ap-glider { position: absolute; top: 5px; bottom: 5px; left: 0; width: 0; border-radius: 10px; background: var(--bg-page); box-shadow: 0 6px 14px -8px rgba(15,23,42,.45), 0 0 0 1px var(--line); transition: transform .4s var(--rise), width .4s var(--rise); }
+.ap-tab { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border: 0; border-radius: 10px; background: none; cursor: pointer; white-space: nowrap; font-size: 0.86rem; font-weight: 600; color: var(--ink-soft); transition: color .2s var(--ease); }
+.ap-tab i { font-size: .85em; transition: transform .3s var(--rise); }
+.ap-tab:hover { color: var(--ink-strong); }
+.ap-tab:hover i { transform: scale(1.15); }
+.ap-tab.active { color: var(--tone, var(--brand)); }
+.ap-tab b { min-width: 22px; padding: 1px 7px; border-radius: 999px; text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--ink-soft); background: rgba(15,23,42,.07); font-variant-numeric: tabular-nums; transition: background-color .25s var(--ease), color .25s var(--ease); }
+.ap-tab.active b { color: #fff; background: var(--tone, var(--brand)); }
+.ap-tab[data-tab="past"] { --tone: var(--green); }
+.ap-tab[data-tab="cancelled"] { --tone: #64748b; }
+.ap-tab[data-tab="ambulance"] { --tone: #dc2626; }
+
+.ap-list { display: flex; flex-direction: column; gap: 14px; }
+
+/* one appointment */
+.ap-card {
+    --tone: var(--brand);
+    position: relative; overflow: hidden; display: flex; align-items: stretch; background: var(--bg-page); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-kpi);
+    animation: dashRise .5s var(--rise) both; animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+    transition: transform .25s var(--rise), box-shadow .25s var(--ease), border-color .25s var(--ease);
+}
+.ap-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--tone) 35%, transparent); box-shadow: 0 22px 36px -24px color-mix(in srgb, var(--tone) 70%, transparent); }
+.ap-card.is-pending { --tone: #d97706; }
+.ap-card.is-accepted { --tone: var(--brand); }
+.ap-card.is-done { --tone: var(--green); }
+.ap-card.is-off { --tone: #64748b; }
+.ap-card.is-urgent { --tone: #dc2626; }
+
+/* the date, like a calendar page */
+.ap-date { flex: 0 0 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 16px 10px; color: #fff; text-align: center; background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 78%, #0b1f44), var(--tone)); }
+.ap-date small { font-size: 0.66rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; opacity: .85; }
+.ap-date b { font-size: 2.3rem; font-weight: 700; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ap-date span { font-size: 0.74rem; font-weight: 600; opacity: .9; }
+.ap-date > i { font-size: 1.7rem; }
+.ap-card.is-urgent .ap-date > i { animation: apSiren 1.6s ease-in-out infinite; }
+@keyframes apSiren { 50% { transform: translateX(3px) rotate(-4deg); } }
+/* ticket edge between the date and the details */
+.ap-card::before { content: ''; position: absolute; left: 104px; top: 12px; bottom: 12px; border-left: 2px dashed var(--border); }
+
+.ap-main { flex: 1; min-width: 0; padding: 16px 22px 16px 26px; }
+.ap-doc { display: flex; align-items: center; gap: 13px; }
+.ap-doc img { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px color-mix(in srgb, var(--tone) 45%, transparent); }
+.ap-doc h4 { font-size: 1.06rem; font-weight: 700; letter-spacing: -0.012em; color: var(--ink-strong); }
+.ap-doc p { font-size: 0.82rem; color: var(--ink-soft); }
+.ap-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.ap-meta span { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; color: var(--ink); background: var(--bg-secondary); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.ap-meta i { font-size: .82em; color: var(--ink-mute); }
+.ap-meta .ap-token { color: #fff; background: var(--tone); border-color: var(--tone); }
+.ap-meta .ap-when { color: var(--tone); background: color-mix(in srgb, var(--tone) 9%, transparent); border-color: color-mix(in srgb, var(--tone) 22%, transparent); }
+.ap-note { margin-top: 14px; font-size: 0.82rem; color: var(--ink-soft); }
+.ap-note i { margin-right: 6px; color: var(--tone); }
+
+/* where the booking stands: the line fills up to the current step */
+.ap-steps { list-style: none; display: flex; margin-top: 16px; }
+.ap-steps li { position: relative; flex: 1; padding-top: 18px; font-size: 0.7rem; font-weight: 600; color: var(--ink-mute); }
+.ap-steps li:last-child { flex: 0 0 auto; }
+.ap-steps li::before { content: ''; position: absolute; top: 0; left: 0; z-index: 1; width: 10px; height: 10px; border-radius: 50%; background: var(--bg-page); border: 2px solid var(--border); transition: background-color .3s var(--ease), border-color .3s var(--ease); }
+.ap-steps li::after { content: ''; position: absolute; top: 4px; left: 10px; right: 0; height: 2px; background: var(--border); }
+.ap-steps li:last-child::after { display: none; }
+.ap-steps li.done { color: var(--ink); }
+.ap-steps li.done::before { background: var(--tone); border-color: var(--tone); animation: apDot .4s var(--spring) both; animation-delay: calc(var(--i, 0) * 70ms + var(--s, 0) * 260ms + 350ms); }
+.ap-steps li.done.fill::after { background: linear-gradient(var(--tone), var(--tone)) no-repeat left / 100% 100%, var(--border); animation: apLine .5s var(--rise) both; animation-delay: calc(var(--i, 0) * 70ms + var(--s, 0) * 260ms + 450ms); }
+.ap-steps li.now { color: var(--tone); }
+.ap-steps li.now::before { border-color: var(--tone); box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 50%, transparent); animation: apNow 2s ease-out infinite; }
+@keyframes apDot { from { transform: scale(0); } }
+@keyframes apLine { from { background-size: 0 100%, auto; } }
+@keyframes apNow { to { box-shadow: 0 0 0 8px transparent; } }
+
+.ap-side { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 16px 20px; }
+.ap-status { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; white-space: nowrap; color: var(--tone); background: color-mix(in srgb, var(--tone) 11%, transparent); }
+.ap-status i { font-size: .85em; }
+.ap-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; border-radius: 9px; cursor: pointer; white-space: nowrap; font-size: 0.8rem; font-weight: 600; color: var(--ink); background: var(--bg-page); border: 1px solid var(--border); transition: all .18s var(--ease); }
+.ap-btn i { font-size: .85em; transition: transform .3s var(--rise); }
+.ap-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+.ap-btn:hover .fa-rotate-right { transform: rotate(180deg); }
+.ap-btn--danger:hover { border-color: #dc2626; color: #b91c1c; background: rgba(220,38,38,.07); }
+
+/* nothing in this tab */
+.ap-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 46px 24px; text-align: center; border: 1px dashed var(--border); border-radius: 16px; background: var(--bg-page); color: var(--ink-soft); font-size: 0.9rem; animation: dashRise .45s var(--rise) both; }
+.ap-empty-art { position: relative; width: 66px; height: 66px; margin-bottom: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.45rem; color: var(--brand); background: var(--brand-light); }
+.ap-empty-art::before, .ap-empty-art::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(37,99,235,.4); animation: svcRing 3s ease-out infinite; }
+.ap-empty-art::after { animation-delay: 1.5s; }
+.ap-empty b { font-size: 1.1rem; color: var(--ink-strong); }
+.ap-empty .ap-btn { margin-top: 14px; }
+.ap-skeleton { height: 138px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(100deg, var(--bg-page) 30%, var(--bg-tertiary) 50%, var(--bg-page) 70%); background-size: 300% 100%; animation: dashShimmer 1.8s linear infinite; }
+
+@media (max-width: 900px) {
+    .ap-head h2 { font-size: 22px; }
+    .ap-new { width: 100%; justify-content: center; }
+    .ap-tabs { display: flex; }
+    .ap-tab { padding: 9px 12px; font-size: 13px; }
+    .ap-card { flex-wrap: wrap; }
+    .ap-date { flex: 0 0 78px; padding: 12px 6px; }
+    .ap-date b { font-size: 26px; }
+    .ap-card::before { display: none; }
+    .ap-main { flex: 1 1 0; padding: 14px 14px 14px 18px; }
+    .ap-side { flex: 1 1 100%; flex-direction: row; align-items: center; padding: 10px 14px 14px; border-top: 1px solid var(--line); }
+    .ap-steps li { font-size: 10.5px; }
+}

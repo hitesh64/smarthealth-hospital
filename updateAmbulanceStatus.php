@@ -1,14 +1,15 @@
 <?php
-include "config.php";
+include "lib.php";
+require_admin_text();
 
-$id = $_GET['id'];
-$status = $_GET['status'];
+$id = intval($_GET['id'] ?? 0);
+$status = trim($_GET['status'] ?? '');
 
-$sql = "UPDATE ambulance SET status='$status' WHERE id='$id'";
-
-if(mysqli_query($conn, $sql)){
-    echo "Ambulance Status Updated to " . $status;
-} else {
+if (!$id || !in_array($status, ['Pending', 'Dispatched'], true)) {
     echo "Error";
+    exit;
 }
+
+db_run("UPDATE ambulance SET status=? WHERE id=?", "si", [$status, $id]);
+echo "Ambulance Status Updated to " . $status;
 ?>

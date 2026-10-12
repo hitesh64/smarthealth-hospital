@@ -1,0 +1,93 @@
+/* Book Ambulance page (patient site): the SOS panel, the request form, what happens next.
+   Sizes are in rem because the page sits inside the zoomed app container. */
+
+/* ---------- SOS panel ---------- */
+.am-sos {
+    position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 30px;
+    padding: 34px 44px 34px 38px; margin-bottom: 20px; border-radius: 20px; color: #fff;
+    background: linear-gradient(120deg, #450a0a 0%, #991b1b 45%, #dc2626 100%); box-shadow: 0 24px 46px -26px rgba(153,27,27,.95);
+    animation: dashRise .45s var(--rise) both;
+}
+.am-sos::before { content: ''; position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px); background-size: 34px 34px; -webkit-mask-image: linear-gradient(100deg, transparent 25%, #000); mask-image: linear-gradient(100deg, transparent 25%, #000); }
+.am-pulse { position: absolute; left: 0; right: 0; bottom: 10px; width: 100%; height: 50px; z-index: -1; opacity: .3; pointer-events: none; }
+.am-pulse path { fill: none; stroke: #fecaca; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; animation: dashPulse 4s var(--rise) infinite; }
+.am-kicker { display: inline-flex; align-items: center; gap: 9px; padding: 4px 13px; border-radius: 999px; font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #fee2e2; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); }
+.am-kicker .live-dot { background: #fff; }
+.am-kicker .live-dot::after { border-color: #fff; }
+.am-sos h2 { margin: 14px 0 8px; font-size: 2.4rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.12; }
+.am-sos p { max-width: 50ch; font-size: 1rem; line-height: 1.6; color: #fee2e2; }
+.am-sos-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.am-sos-actions a { text-decoration: none; }
+.am-sos-actions a:hover .fa-phone { animation: hdrRing .6s ease-in-out; }
+
+/* the button: rings spread out from it like a signal */
+.am-sos-btn { position: relative; flex: 0 0 auto; width: 164px; height: 164px; margin: 18px; border-radius: 50%; border: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #b91c1c; background: #fff; box-shadow: 0 24px 40px -18px rgba(0,0,0,.7), inset 0 -8px 0 rgba(185,28,28,.12); transition: transform .25s var(--rise), box-shadow .25s var(--ease); }
+.am-sos-btn i.fas { font-size: 1.5rem; }
+.am-sos-btn b { font-size: 2.5rem; font-weight: 800; letter-spacing: .04em; line-height: 1; }
+.am-sos-btn small { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #991b1b; }
+.am-sos-btn:hover { transform: scale(1.06); }
+.am-sos-btn:active { transform: scale(.97); box-shadow: 0 12px 22px -12px rgba(0,0,0,.7), inset 0 4px 0 rgba(185,28,28,.14); }
+.am-rings i { position: absolute; inset: 0; z-index: -1; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); animation: amRing 2.7s ease-out infinite; }
+.am-rings i:nth-child(2) { animation-delay: .9s; }
+.am-rings i:nth-child(3) { animation-delay: 1.8s; }
+@keyframes amRing { from { transform: scale(1); opacity: .9; } to { transform: scale(1.75); opacity: 0; } }
+.am-sos-btn:hover .fa-truck-medical { animation: apSiren .5s ease-in-out infinite; }
+
+/* ---------- request form + side column ---------- */
+.am-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 22px; align-items: start; max-width: 1240px; }
+.am-form { margin: 0; padding: 26px 28px 28px; border-radius: 20px; animation: dashRise .5s var(--rise) 80ms both; }
+.am-form .hc-h > i { color: #dc2626; background: rgba(220,38,38,.1); }
+.am-label { display: block; margin-bottom: 8px; font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; color: #475569; }
+/* kind of emergency: one tap */
+.am-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.am-types button { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 16px 8px 14px; border-radius: 14px; cursor: pointer; text-align: center; font-size: .82rem; font-weight: 600; line-height: 1.3; color: var(--ink-soft); background: var(--bg-page); border: 1.5px solid var(--border); transition: transform .25s var(--rise), border-color .2s var(--ease), color .2s var(--ease), background-color .2s var(--ease), box-shadow .2s var(--ease); }
+.am-types button i { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #dc2626; background: rgba(220,38,38,.09); transition: background-color .25s var(--ease), color .25s var(--ease), transform .35s var(--rise); }
+.am-types button:hover { transform: translateY(-2px); border-color: #fca5a5; color: var(--ink-strong); }
+.am-types button:hover i { transform: scale(1.08) rotate(-6deg); }
+.am-types button.active { color: #991b1b; border-color: #dc2626; background: rgba(220,38,38,.05); box-shadow: 0 12px 20px -14px rgba(220,38,38,.9); }
+.am-types button.active i { color: #fff; background: #dc2626; animation: pfPick .4s var(--spring); }
+.am-form .pf-input:focus-within > i { color: #dc2626; }
+.am-form .form-group input:focus, .am-form .form-group textarea:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+.am-form .is-missing input, .am-form .is-missing textarea { border-color: #dc2626; animation: amShake .4s var(--ease); }
+@keyframes amShake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+.am-filled { display: flex; align-items: center; gap: 9px; margin: -4px 0 16px; padding: 9px 13px; border-radius: 10px; font-size: .82rem; color: #1e40af; background: var(--brand-light); animation: dashRise .4s var(--rise) both; }
+.am-filled[hidden] { display: none; }
+.am-submit { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px; border-radius: 12px; font-size: 1.02rem; background: #dc2626; }
+.am-submit:hover { background: #b91c1c; }
+.am-submit:hover .fa-truck-medical { animation: apSiren .5s ease-in-out infinite; }
+.am-submit:disabled { background: #fca5a5; cursor: wait; transform: none; box-shadow: none; }
+
+.am-side { display: flex; flex-direction: column; gap: 18px; }
+.am-box { padding: 22px 24px; border-radius: 18px; background: var(--bg-page); border: 1px solid var(--line); box-shadow: var(--shadow-kpi); animation: dashRise .5s var(--rise) both; }
+.am-box:nth-child(1) { animation-delay: 140ms; }
+.am-box:nth-child(2) { animation-delay: 210ms; }
+.am-box h4 { margin-bottom: 16px; font-size: 1rem; font-weight: 700; color: var(--ink-strong); }
+/* what happens after the request */
+.am-steps { list-style: none; position: relative; display: flex; flex-direction: column; gap: 16px; }
+.am-steps::before { content: ''; position: absolute; left: 15px; top: 16px; bottom: 16px; width: 2px; background: linear-gradient(#dc2626, var(--border)); }
+.am-steps li { position: relative; display: flex; gap: 14px; align-items: flex-start; }
+.am-steps li > span { position: relative; z-index: 1; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; color: #dc2626; background: var(--bg-page); border: 2px solid #fca5a5; transition: all .25s var(--ease); }
+.am-steps li:first-child > span { color: #fff; background: #dc2626; border-color: #dc2626; }
+.am-steps li:hover > span { color: #fff; background: #dc2626; border-color: #dc2626; transform: scale(1.1); }
+.am-steps b { display: block; font-size: .9rem; color: var(--ink-strong); }
+.am-steps p { font-size: .82rem; line-height: 1.5; color: var(--ink-soft); }
+.am-box .ap-btn { margin-top: 16px; }
+.am-ready { list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.am-ready li { display: flex; align-items: flex-start; gap: 11px; font-size: .86rem; line-height: 1.5; color: var(--ink); }
+.am-ready i { width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .72rem; color: #0f766e; background: rgba(13,148,136,.1); }
+
+@media (max-width: 1000px) {
+    .am-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+    .am-sos { flex-direction: column; align-items: flex-start; gap: 6px; padding: 24px 20px 28px; border-radius: 16px; }
+    .am-sos h2 { font-size: 26px; }
+    .am-sos p { font-size: 14px; }
+    .am-sos-btn { align-self: center; width: 140px; height: 140px; margin: 26px 0 10px; }
+    .am-sos-btn b { font-size: 34px; }
+    .am-form { padding: 18px 16px 20px; border-radius: 16px; }
+    .am-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .am-box { padding: 18px 16px; }
+    /* keep the confirm button clear of the floating SOS button */
+    .am-side { margin-bottom: 70px; }
+}

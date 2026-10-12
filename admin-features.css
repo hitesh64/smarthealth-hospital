@@ -1,0 +1,122 @@
+/* Admin feature pages: Analytics, SOS Alerts, Medicine Stock, Medicine Orders, Notifications.
+   Loaded after admin.css, which defines the colours and the shared components. */
+
+.feat-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.feat-toolbar span { color: var(--ink-soft); }
+.feat-note { color: var(--ink-soft); font-size: 0.93rem; margin: 0 0 14px; }
+.feat-warn {
+    background: var(--amber-light); color: #6d4005; border: 1px solid #efdcb8; border-left: 3px solid var(--amber);
+    border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px; font-size: 0.93rem;
+}
+.feat-warn div + div { margin-top: 4px; }
+.feat-warn code { font-family: var(--mono); font-size: 0.9em; }
+.feat-inline { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.feat-inline select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; flex: 1 1 180px; }
+
+/* analytics */
+.an-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.an-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
+.an-stat .v { font-size: 1.6rem; font-weight: 600; color: var(--ink-strong); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.an-stat .l { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); }
+.an-stats .feat-warn { grid-column: 1 / -1; margin: 0; }
+.an-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+.an-chart { margin-bottom: 0; min-width: 0; }
+.an-chart.wide { grid-column: 1 / -1; }
+.an-chart .canvas-wrap { position: relative; height: 250px; padding: 16px 20px; }
+@media (max-width: 992px) { .an-charts { grid-template-columns: 1fr; } }
+
+/* SOS */
+#sos-banner {
+    display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 5000; background: #b3261e; color: #fff;
+    padding: 11px 18px; font-weight: 600; text-align: center; cursor: pointer; animation: sos-flash 1s infinite;
+}
+#sos-banner.show { display: block; }
+@keyframes sos-flash { 50% { background: #7f1a14; } }
+.sos-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; }
+@media (max-width: 992px) { .sos-grid { grid-template-columns: 1fr; } }
+#sos-admin-map { height: 440px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-tertiary); z-index: 0; }
+.sos-list { max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.sos-item { border: 1px solid var(--border); border-left: 3px solid var(--ink-mute); border-radius: var(--radius-sm); padding: 12px 14px; }
+.sos-item.New { border-left-color: var(--red); background: #fdf5f4; }
+.sos-item.Dispatched, .sos-item.Arrived { border-left-color: var(--brand); }
+.sos-item.Resolved { border-left-color: var(--green); }
+.sos-item h4 { font-size: 1rem; font-weight: 600; color: var(--ink-strong); display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sos-item p { color: var(--ink-soft); margin: 3px 0; font-size: 0.93rem; }
+.sos-item p i { width: 16px; color: var(--ink-mute); }
+.sos-item .feat-inline { margin-top: 10px; }
+.map-pin {
+    width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+.map-pin.me { background: #b3261e; }
+.map-pin.amb { background: #17539c; }
+.map-pin.amb.off { background: #8a94a3; }
+.map-pin.hosp { background: #1a7f4b; }
+.link-box { font-family: var(--mono); font-size: 0.82rem; color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); padding: 5px 8px; border-radius: 4px; word-break: break-all; max-width: 420px; }
+
+/* medicine stock */
+tr.stock-low td { background: #fdf5f4; }
+tr.stock-low:hover td { background: #fbeceb; }
+.stock-num { font-weight: 600; color: var(--ink-strong); }
+.med-thumb { width: 44px; height: 44px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--border); background: var(--bg-tertiary); display: block; }
+.med-thumb.none { display: flex; align-items: center; justify-content: center; color: var(--ink-mute); }
+.med-check { display: flex !important; align-items: center; gap: 10px; font-weight: 500 !important; cursor: pointer; }
+.med-check input { width: 16px; height: 16px; accent-color: var(--brand); }
+.badge-stack { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+
+/* medicine orders */
+.ord-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--ink-mute); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 14px; }
+.ord-card.Placed { border-left-color: var(--red); }
+.ord-card.open { border-left-color: var(--brand); }
+.ord-card.done { border-left-color: var(--green); }
+.ord-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ord-head h4 { font-family: var(--mono); font-size: 1rem; font-weight: 500; color: var(--ink-strong); }
+.ord-head small { font-family: var(--font); color: var(--ink-mute); font-weight: 400; margin-left: 8px; }
+.ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.ord-grid p { margin: 3px 0; color: var(--ink-soft); }
+.ord-grid p b { color: var(--ink-strong); font-weight: 600; }
+.ord-grid p i { width: 16px; color: var(--ink-mute); }
+.ord-items { width: 100%; align-self: start; }
+.ord-items td { padding: 4px 0; border: 0; }
+.ord-items td:last-child { text-align: right; }
+.ord-items tr.sum td { border-top: 1px solid var(--line); font-weight: 600; color: var(--ink-strong); padding-top: 8px; }
+.ord-items tr:hover td { background: transparent; }
+.ord-card .feat-warn { margin: 14px 0 0; }
+.ord-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ord-actions .feat-note { margin: 0; }
+.ord-utr { font-family: var(--mono); letter-spacing: .5px; user-select: all; }
+
+@media (max-width: 768px) {
+    .ord-grid { grid-template-columns: 1fr; gap: 12px; }
+    .ord-card { padding: 14px; }
+    .an-stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .an-stat .v { font-size: 1.25rem; }
+    .an-chart .canvas-wrap { height: 220px; padding: 12px; }
+    #sos-admin-map { height: 300px; }
+    .sos-list { max-height: none; }
+    #sos-banner { font-size: 13px; padding: 10px 12px; }
+    .feat-toolbar { width: 100%; }
+    .feat-toolbar .field { flex: 1 1 130px; min-width: 0; }
+}
+
+/* medicine orders dashboard */
+.ord-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.ord-stat {
+    display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 14px 16px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0;
+}
+button.ord-stat { cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+button.ord-stat:hover { border-color: #b9c6d8; }
+.ord-stat.active { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+.ord-stat-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--ink-mute); }
+.ord-stat .l { font-size: 0.78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+.ord-stat .v { font-size: 1.7rem; font-weight: 600; line-height: 1.25; color: var(--ink-strong); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ord-stat .h { font-size: 0.85rem; color: var(--ink-mute); }
+.ord-stat.tone-red .v, .ord-stat.tone-red .ord-stat-top i { color: var(--red); }
+.ord-stat.tone-red .h { color: var(--red); font-weight: 600; }
+.ord-stat.tone-green .ord-stat-top i { color: var(--green); }
+.ord-stat.tone-amber .h { color: var(--amber); font-weight: 600; }
+.ord-summary { color: var(--ink-soft); font-size: 0.93rem; margin-bottom: 12px; }
+.ord-summary b { color: var(--ink-strong); font-weight: 600; }
+@media (max-width: 1100px) { .ord-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+@media (max-width: 768px) { .ord-stat { padding: 12px; } .ord-stat .v { font-size: 1.3rem; } }

@@ -1,0 +1,6 @@
+.git
+.claude
+settings.php
+*.sql
+Dockerfile
+.dockerignore

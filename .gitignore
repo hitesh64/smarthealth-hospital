@@ -1,0 +1,5 @@
+# Contains the Gmail app password / SMS API key - never commit
+settings.php
+
+# Database export for moving to a hosted MySQL - contains patient data, never commit
+hospital_db.sql
