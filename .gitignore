@@ -3,3 +3,6 @@ settings.php
 
 # Database export for moving to a hosted MySQL - contains patient data, never commit
 hospital_db.sql
+
+# Values to paste into Render > Environment - contains the Gmail app password, never commit
+render.env

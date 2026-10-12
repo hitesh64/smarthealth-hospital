@@ -4,3 +4,5 @@ settings.php
 *.sql
 Dockerfile
 .dockerignore
+import_db.php
+render.env
