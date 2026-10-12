@@ -1543,54 +1543,30 @@ shToast("Server Error", "error");
         resultBox.style.display = 'none';
         loader.style.display = 'block';
 
-        // Aapka naya active API Key
-        const API_KEY = "AIzaSyDOj4tPuuZ9pLA0WL5cNRgJ944Es83-0PE"; 
-        
-        // Using gemini-2.5-flash which has higher capacity than the lite version
-        const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
-
-        const prompt = `You are a helpful, professional medical AI assistant for an app called SmartHealth. A user describes their symptoms: "${input}". 
-        Please provide a structured, cautious preliminary analysis. 
-        Format your response purely in HTML format (using <h4>, <p>, <ul>, <li>, <strong>) without markdown backticks. 
-        Structure it strictly as: 
-        1. <h4>Preliminary Assessment</h4> 
-        2. <h4>Suggested Immediate Steps (Home Care)</h4> 
-        3. <h4>Recommended Specialist</h4>
-        Always end with a strong medical disclaimer that they should consult a real doctor.`;
-
+        // The Gemini API key stays on the server: aiApi.php makes the AI call
         try {
-            const response = await fetch(URL, {
+            const response = await fetch('aiApi.php?action=symptoms', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
-                })
+                body: new URLSearchParams({ symptoms: input })
             });
 
             const data = await response.json();
-            
-            if(!response.ok) {
-                console.error("API Error Details:", data);
-                throw new Error(data.error?.message || "Failed to connect to AI server");
-            }
-            
-            if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
-                throw new Error("No response generated. The AI might have blocked the input due to safety filters.");
+
+            if(!response.ok || data.status !== 'success') {
+                throw new Error(data.message || "Failed to connect to AI server");
             }
 
-            let htmlContent = data.candidates[0].content.parts[0].text;
-            htmlContent = htmlContent.replace(/```html/g, '').replace(/```/g, '');
-            
-            resultBox.innerHTML = htmlContent;
-            
+            resultBox.innerHTML = data.html;
+
         } catch (error) {
             console.error("AI Error Triggered: ", error);
-            
+
             resultBox.innerHTML = `
                 <h4><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Error Analyzing Symptoms</h4>
-                <p style="color: var(--danger); font-weight: bold; margin-bottom: 10px;">Error Details: ${error.message}</p>
-                <p>Please verify your API key is valid, enabled, and has no billing restrictions. You can also consult a doctor directly through the 'Find Doctors' tab.</p>
+                <p style="color: var(--danger); font-weight: bold; margin-bottom: 10px;"></p>
+                <p>You can also consult a doctor directly through the 'Find Doctors' tab.</p>
             `;
+            resultBox.querySelector('p').textContent = error.message;
         } finally {
             loader.style.display = 'none';
             resultBox.style.display = 'block';

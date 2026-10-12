@@ -29,4 +29,7 @@ define('REMINDER_HOURS_BEFORE', (int)env_setting('REMINDER_HOURS_BEFORE', 24));
 define('UPI_ID', env_setting('UPI_ID'));
 define('UPI_PAYEE_NAME', env_setting('UPI_PAYEE_NAME', 'SmartHealth Hospital'));
 define('UPI_PAY_MINUTES', (int)env_setting('UPI_PAY_MINUTES', 30));
+
+// --- AI Symptom Checker: Google Gemini API key (empty = the checker is switched off) ---
+define('GEMINI_API_KEY', env_setting('GEMINI_API_KEY'));
 ?>
