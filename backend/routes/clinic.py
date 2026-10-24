@@ -7,8 +7,8 @@ from flask import Blueprint, jsonify, request, session
 from .. import config
 from ..db import db, next_id, now, out, out_all
 from ..mail import notify_booking_status, notify_patient, send_email
-from ..utils import (arg, background, fail, is_admin, login_session, new_token, norm_email, ok, post, require_admin,
-                     require_admin_text, require_doctor, require_user, save_image, slot_datetime, text, to_int,
+from ..utils import (admin_can, arg, background, fail, login_session, new_token, norm_email, ok, post, require_perm,
+                     require_doctor, require_user, save_image, slot_datetime, text, to_int,
                      today_ist, valid_email, valid_ymd)
 from .auth import check_pw, hash_pw
 
@@ -38,13 +38,13 @@ def with_doctor(rows):
 @bp.get("/api/doctors")
 def get_doctors():
     """Public list for booking. The password hash never leaves; the login email only for the admin."""
-    hide = ("password",) if is_admin() else ("password", "email")
+    hide = ("password",) if admin_can("doctors") else ("password", "email")
     return jsonify(out_all(db.doctors.find().sort("_id", 1), hide))
 
 
 @bp.post("/api/doctors/add")
 def add_doctor():
-    require_admin_text()
+    require_perm("doctors", as_text=True)
     name, spec, days = post("doctor_name"), post("specialization"), post("days")
     experience = max(0, to_int(post("experience")))
     if not name or not spec or not days:
@@ -65,7 +65,7 @@ def add_doctor():
 
 @bp.post("/api/doctors/update")
 def update_doctor():
-    require_admin_text()
+    require_perm("doctors", as_text=True)
     doc_id = to_int(post("id"))
     if not doc_id or not db.doctors.find_one({"_id": doc_id}):
         return text("Error: Doctor not found.")
@@ -94,7 +94,7 @@ def update_doctor():
 
 @bp.get("/api/doctors/delete")
 def delete_doctor():
-    require_admin_text()
+    require_perm("doctors", as_text=True)
     doc_id = to_int(arg("id"))
     if not doc_id:
         return text("No Doctor ID provided.")
@@ -106,7 +106,7 @@ def delete_doctor():
 @bp.get("/api/users")
 def get_users():
     """Patient directory, admin only. Password hash, QR token and medical details stay on the server."""
-    require_admin()
+    require_perm("patients")
     rows = db.users.find({}, {"name": 1, "email": 1, "phone": 1, "age": 1, "blood": 1}).sort("_id", 1)
     return jsonify(out_all(rows))
 
@@ -116,7 +116,7 @@ def get_users():
 @bp.get("/api/bookings")
 def get_bookings():
     """The admin gets every booking, a logged-in patient only their own, anybody else nothing."""
-    if is_admin():
+    if admin_can("appointments"):
         rows = db.bookings.find().sort("_id", -1)
     elif session.get("user_email"):
         rows = db.bookings.find({"user_id": session["user_email"]}).sort("_id", -1)
@@ -175,7 +175,7 @@ def booking_status():
     if not before:
         return text("Error")
     # The admin may set any status. A patient may only cancel their own booking, and only while it is still open.
-    if not is_admin():
+    if not admin_can("appointments"):
         me = session.get("user_email", "")
         own = me and norm_email(before.get("user_id")) == me
         is_open = (before.get("status") or "Pending") in ("Pending", "Accepted")
@@ -189,7 +189,7 @@ def booking_status():
 
 @bp.get("/api/bookings/delete")
 def delete_booking():
-    require_admin_text()
+    require_perm("appointments", as_text=True)
     bid = to_int(arg("id"))
     if not bid:
         return text("Error: No booking ID provided.")

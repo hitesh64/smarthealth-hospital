@@ -48,6 +48,17 @@ py -3.12 scripts/send_reminders.py
 | Patient pages | `index.html`, `lab.js`, `ambulance.js`, `features.js`, … |
 | Admin pages | `admin.html`, `admin.js`, `admin-features.js`, `admin-lab.js` |
 
+## Staff roles (Admin > Settings)
+
+* Every staff member gets their own login (Settings > Staff users) and signs in on `admin.html`.
+* A role lists the sections it may open (Appointments, Patients, Doctors, Ambulance, SOS, Lab,
+  Lab catalogue, Medicine stock, Orders, Analytics, Notifications, Settings). Ready-made roles:
+  Super Admin, Receptionist, Lab Technician, Pharmacist, Emergency Desk — change them or add your own.
+* The server checks the role on every request, so a hidden section cannot be reached by URL either.
+  A switched-off account loses access at once.
+* Super Admin always has every section and cannot be deleted; there is always at least one active
+  Super Admin, and nobody can switch off, delete or demote their own account.
+
 ## Laboratory
 
 * 18 standard tests and 4 health packages with common adult reference ranges (male / female where

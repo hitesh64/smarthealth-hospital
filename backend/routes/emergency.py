@@ -12,9 +12,9 @@ from flask import Blueprint, jsonify, request, session
 from .. import config
 from ..db import db, next_id, now, out
 from ..mail import send_email
-from ..routing import (advance_simulation, gps_is_fresh, hospital, park_at_hospital, plan_route, progress, reverse_place,
-                       road_route, route_summary, search_places)
-from ..utils import (arg, background, distance_km, fail, is_admin, new_token, ok, post, require_admin, to_float, to_int,
+from ..routing import (advance_simulation, gps_is_fresh, hospital, locate_address, park_at_hospital, plan_route, progress,
+                       reverse_place, road_route, route_summary, search_places)
+from ..utils import (admin_can, arg, background, distance_km, fail, new_token, ok, post, require_perm, to_float, to_int,
                      too_soon, valid_coords)
 
 bp = Blueprint("emergency", __name__)
@@ -103,6 +103,22 @@ def geo_search():
         fail("Address search is not available right now. Drop the pin on the map instead.", 502)
 
 
+@bp.get("/api/geo/locate")
+def geo_locate():
+    """Puts a typed address on the map (shortening it until a place is found)."""
+    q = arg("q")
+    if len(q) < 3:
+        return ok(found=False)
+    try:
+        hit = locate_address(q[:200])
+    except Exception as exc:
+        print(f"[geo] locate failed: {exc}")
+        hit = None
+    if not hit:
+        return ok(found=False)
+    return ok(found=True, **hit, **service_info(hit["lat"], hit["lng"]))
+
+
 @bp.get("/api/geo/reverse")
 def geo_reverse():
     lat, lng = to_float(arg("lat")), to_float(arg("lng"))
@@ -127,12 +143,34 @@ def route_preview():
 
 # ================================================================= ambulance requests
 
+def ensure_pickup(r):
+    """A request booked without a map pin gets its pickup point from the typed address (tried once),
+    so the route from the hospital can be drawn. Returns the request as it is now."""
+    if r.get("pickup_lat") is not None or not r.get("address") or r.get("geo_tried"):
+        return r
+    try:
+        hit = locate_address(r["address"])
+    except Exception as exc:
+        print(f"[geo] locate failed for request {r['_id']}: {exc}")
+        return r  # the map server is down: try again next time
+    changes = {"geo_tried": True}
+    if hit:
+        changes.update(pickup_lat=hit["lat"], pickup_lng=hit["lng"], pickup_place=hit["name"],
+                       pin_source="address" if hit["exact"] else "address-approx",
+                       route=road_route(config.HOSPITAL_LAT, config.HOSPITAL_LNG, hit["lat"], hit["lng"]))
+    db.ambulance_requests.update_one({"_id": r["_id"]}, {"$set": changes})
+    r.update(changes)
+    return r
+
+
 def request_row(r, with_route=False):
     row = out(r, hide=("route", "track_token"))
     row["route_summary"] = route_summary(r.get("route"))
     amb = db.ambulances.find_one({"_id": r["ambulance_id"]}) if r.get("ambulance_id") else None
     row["ambulance"] = amb_public(amb)
     row["eta"] = progress(r, amb) if r.get("status") == "Dispatched" else None
+    if r.get("pickup_lat") is not None:
+        row.update(service_info(r["pickup_lat"], r["pickup_lng"]))
     if with_route and r.get("route"):
         row["route"] = r["route"]["coords"]
     return row
@@ -142,8 +180,8 @@ def request_row(r, with_route=False):
 def list_requests():
     """The admin gets every request (plus the fleet for the map), a patient only their own."""
     advance_simulation()
-    if is_admin():
-        rows = list(db.ambulance_requests.find().sort("_id", -1))
+    if admin_can("ambulance"):
+        rows = [ensure_pickup(r) if r.get("status") == "Pending" else r for r in db.ambulance_requests.find().sort("_id", -1)]
         fleet = [{**amb_public(a), "id": a["_id"], "status": a["status"]} for a in db.ambulances.find().sort("_id", 1)]
         return ok(requests=[request_row(r, r.get("status") in ("Pending", "Dispatched", "Arrived")) for r in rows],
                   fleet=fleet, hospital=hospital())
@@ -167,21 +205,25 @@ def book_request():
     if too_soon("ambulance_book", 20):
         fail("Your request was just sent. Please wait a few seconds before booking again.", 429)
     lat, lng = coord("lat"), coord("lng")
+    pin_source, place = post("pin_source")[:20] or "map", None
     if not valid_coords(lat, lng):
-        # no pin on the map: try to find the typed address, so a route can still be made
+        # no pin on the map: find the typed address, so a route can still be made
         lat = lng = None
         try:
-            places = search_places(address[:120])
-            if places:
-                lat, lng = places[0]["lat"], places[0]["lng"]
+            hit = locate_address(address)
         except Exception:
-            pass
+            hit = None
+        if hit:
+            lat, lng, place = hit["lat"], hit["lng"], hit["name"]
+            pin_source = "address" if hit["exact"] else "address-approx"
+        else:
+            pin_source = None
     route = road_route(config.HOSPITAL_LAT, config.HOSPITAL_LNG, lat, lng) if lat is not None else None
     rid = next_id("ambulance_requests")
     db.ambulance_requests.insert_one({
         "_id": rid, "user_id": uid, "patient_name": name[:100], "phone": phone[:20], "address": address[:500],
         "emergency_type": kind[:100] or "General Emergency", "status": "Pending",
-        "pickup_lat": lat, "pickup_lng": lng, "pin_source": post("pin_source")[:20] or ("address" if lat is not None else None),
+        "pickup_lat": lat, "pickup_lng": lng, "pin_source": pin_source, "pickup_place": place, "geo_tried": True,
         "route": route, "ambulance_id": None, "created_at": now(), "updated_at": now(),
         "dispatched_at": None, "arrived_at": None, "completed_at": None})
     summary = route_summary(route)
@@ -193,7 +235,7 @@ def own_request(rid):
     r = db.ambulance_requests.find_one({"_id": rid})
     if not r:
         fail("Request not found", 404)
-    if not is_admin() and r.get("user_id") != session.get("user_email"):
+    if not admin_can("ambulance") and r.get("user_id") != session.get("user_email"):
         fail("Please log in again", 401)
     return r
 
@@ -201,7 +243,7 @@ def own_request(rid):
 @bp.get("/api/ambulance/track")
 def track_request():
     advance_simulation()
-    r = own_request(to_int(arg("id")))
+    r = ensure_pickup(own_request(to_int(arg("id"))))
     amb = db.ambulances.find_one({"_id": r["ambulance_id"]}) if r.get("ambulance_id") else None
     eta = progress(r, amb) if r["status"] == "Dispatched" else None
     amb_view = amb_public(amb, eta["live"] if eta else None)
@@ -211,7 +253,8 @@ def track_request():
         amb_view["lat"], amb_view["lng"] = r["pickup_lat"], r["pickup_lng"]
     route = r.get("route")
     return ok(request=out(r, hide=("route", "track_token")), ambulance=amb_view, eta=eta,
-              route=route["coords"] if route else None, route_summary=route_summary(route), hospital=hospital())
+              route=route["coords"] if route else None, route_summary=route_summary(route), hospital=hospital(),
+              **(service_info(r["pickup_lat"], r["pickup_lng"]) if r.get("pickup_lat") is not None else {}))
 
 
 @bp.post("/api/ambulance/cancel")
@@ -227,11 +270,12 @@ def cancel_request():
 
 @bp.post("/api/ambulance/dispatch")
 def dispatch_request():
-    require_admin()
+    require_perm("ambulance")
     ensure_fleet()
     r = db.ambulance_requests.find_one({"_id": to_int(post("id")), "status": "Pending"})
     if not r:
         fail("This request is no longer waiting for dispatch. The list has been refreshed.", 409)
+    r = ensure_pickup(r)
     amb = take_ambulance(to_int(post("ambulance_id")), r.get("pickup_lat"), r.get("pickup_lng"))
     if not amb:
         fail("No ambulance is free right now. Add one under SOS Alerts > Ambulance Fleet, or finish an active job first.", 409)
@@ -254,7 +298,7 @@ def dispatch_request():
 
 @bp.route("/api/ambulance/status", methods=["GET", "POST"])
 def request_status():
-    require_admin()
+    require_perm("ambulance")
     rid = to_int(request.values.get("id"))
     status = (request.values.get("status") or "").strip()
     flow = {"Arrived": ["Dispatched"], "Completed": ["Dispatched", "Arrived"], "Cancelled": ["Pending", "Dispatched", "Arrived"]}
@@ -272,7 +316,7 @@ def request_status():
 
 @bp.get("/api/ambulance/delete")
 def delete_request():
-    require_admin()
+    require_perm("ambulance")
     r = db.ambulance_requests.find_one_and_delete({"_id": to_int(arg("id"))})
     if r and r.get("status") in OPEN_REQUEST:
         free_ambulance(r.get("ambulance_id"))
@@ -399,7 +443,7 @@ def sos_api():
                   job=job, hospital=hospital())
 
     # ------------------------------------------------------------ admin
-    require_admin()
+    require_perm("sos")
     ensure_fleet()
 
     if action == "list":

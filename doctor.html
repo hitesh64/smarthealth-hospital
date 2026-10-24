@@ -502,7 +502,7 @@
                                     <summary><b>${esc(l.tests.join(', '))}</b> <span class="muted">· ${esc((l.report_at || '').slice(0, 10))} · ${esc(l.booking_no)}</span>
                                         ${l.abnormal ? `<span class="badge Rejected">${l.abnormal} flagged</span>` : '<span class="badge Completed">All normal</span>'}</summary>
                                     ${l.sections.map(sec => `<div class="lab-sec"><b>${esc(sec.name)}</b>
-                                        <table><tbody>${sec.rows.map(r => `<tr class="${r.flag ? 'flag' : ''}"><td>${esc(r.name)}</td>
+                                        <table><tbody>${sec.rows.filter(r => r.value !== '' && r.value !== null).map(r => `<tr class="${r.flag ? 'flag' : ''}"><td>${esc(r.name)}</td>
                                             <td><b>${esc(r.value === '' ? '—' : r.value)}</b> ${esc(r.unit)} ${r.flag ? `<span class="lab-f">${{ H: '▲ High', L: '▼ Low', A: 'Abnormal' }[r.flag]}</span>` : ''}</td>
                                             <td class="muted">${esc(r.ref)}</td></tr>`).join('')}</tbody></table></div>`).join('')}
                                     ${l.remarks ? `<p class="muted">Remarks: ${esc(l.remarks)}</p>` : ''}

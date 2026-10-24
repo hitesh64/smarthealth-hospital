@@ -18,17 +18,19 @@ function loadLab() {
         badge.classList.toggle('show', d.waiting > 0);
         const s = d.stats;
         document.getElementById('lab-stats').innerHTML = [
-            ['Booked', 'Awaiting sample', s.booked, `${s.today_slots} due today`, 'fa-vial', s.booked ? 'amber' : ''],
+            ['Booked', 'Awaiting sample', s.booked, `${s.today_slots} due today · ${afMoney(s.to_collect)} to collect`, 'fa-vial', s.booked ? 'amber' : ''],
             ['Sample Collected', 'Sample collected', s.collected, 'Results to enter', 'fa-flask', ''],
             ['Processing', 'Processing', s.processing, 'Results being checked', 'fa-microscope', ''],
-            ['Report Ready', 'Reports ready', s.ready, `${afMoney(s.revenue)} billed`, 'fa-file-circle-check', 'green'],
+            ['Report Ready', 'Reports ready', s.ready, 'Sent to the patients', 'fa-file-circle-check', 'green'],
             ['open', 'Open bookings', s.booked + s.collected + s.processing, 'Need action', 'fa-list-check', ''],
             ['Cancelled', 'Cancelled', s.cancelled, 'By patient or lab', 'fa-ban', ''],
-            ['all', 'All bookings', s.total, 'Since the start', 'fa-database', '']
+            ['all', 'All bookings', s.total, 'Since the start', 'fa-database', ''],
+            // money is taken when the sample is collected, so only collected bookings count as revenue
+            [null, 'Total lab revenue', afMoney(s.revenue), `Today ${afMoney(s.revenue_today)} · this month ${afMoney(s.revenue_month)} · ${s.paid_count} paid`, 'fa-indian-rupee-sign', 'green']
         ].map(([f, label, value, hint, icon, tone]) => `
-            <button type="button" class="ord-stat ${tone ? 'tone-' + tone : ''} ${f === labFilter ? 'active' : ''}" onclick="labFilter='${f}'; loadLab()">
+            <${f ? 'button type="button"' : 'div'} class="ord-stat ${tone ? 'tone-' + tone : ''} ${f && f === labFilter ? 'active' : ''}" ${f ? `onclick="labFilter='${f}'; loadLab()"` : 'title="Collected at sample collection. Bookings still waiting for the sample are shown under Awaiting sample."'}>
                 <span class="ord-stat-top"><span class="l">${label}</span><i class="fas ${icon}"></i></span><span class="v">${value}</span><span class="h">${hint}</span>
-            </button>`).join('');
+            </${f ? 'button' : 'div'}>`).join('');
         renderLab();
     }).catch(() => {});
 }
@@ -74,6 +76,9 @@ async function cancelLab(id) {
 function closeLabModal(id) { document.getElementById(id).style.display = 'none'; }
 
 // ---------------------------------------------------------------- result entry
+// One test at a time: the tests are listed on the left with how much is filled in, the chosen test's
+// values are typed on the right, and a last step reviews everything before the report is published.
+// Fields may stay empty; the report then shows only the values that are entered.
 
 function labEval(expr, values) {
     // formulas come from the test catalogue, e.g. "tc - hdl - tg / 5"; only numbers, names and + - * / ( ) < > are allowed
@@ -96,88 +101,245 @@ function labFlag(row, value) {
     return '';
 }
 
+// A typed number: {num} when it can be used, {err} when it cannot
+function lrCheck(row, raw) {
+    const t = String(raw ?? '').replace(/,/g, '').trim();
+    if (t === '') return {};
+    if (!/^-?\d*\.?\d+$/.test(t)) return { err: 'Enter a number' };
+    const n = parseFloat(t);
+    if (n < 0) return { err: 'Cannot be negative' };
+    if (row.unit === '%' && n > 100) return { err: 'Cannot be more than 100%' };
+    return { num: n };
+}
+
 let labEditing = null;
+const LR_FLAG = { H: ['High', 'fa-arrow-up'], L: ['Low', 'fa-arrow-down'], A: ['Abnormal', 'fa-triangle-exclamation'] };
 
 function openLabResults(id) {
     const b = labRows.find(x => x.id === id);
     if (!b) return;
-    labEditing = b;
-    document.getElementById('lab-res-title').textContent = `Results · ${b.booking_no} · ${b.patient_name} (${b.age} ${b.gender})`;
+    const values = {};
+    b.report.forEach(sec => {
+        values[sec.code] = {};
+        sec.rows.forEach(r => { if (!r.calc || r.raw !== '') values[sec.code][r.key] = r.raw === null || r.raw === undefined ? '' : String(r.raw); });
+    });
+    // a value worked out earlier by the server is shown as automatic again, so it follows its inputs
+    b.report.forEach(sec => sec.rows.forEach(r => { if (r.calc) values[sec.code][r.key] = ''; }));
+    labEditing = { b, values, active: 0, remarks: b.remarks || '', reportedBy: b.reported_by || '' };
+    document.getElementById('lab-res-title').innerHTML = `<i class="fas fa-microscope"></i> Enter results <small>${afEsc(b.booking_no)}</small>`;
     document.getElementById('lab-res-body').innerHTML = `
-        <div class="lab-res">
-            ${b.report.map(sec => `
-                <section class="lab-res-test" data-code="${afEsc(sec.code)}">
-                    <h4>${afEsc(sec.name)} <small>${afEsc(sec.sample)}${sec.package ? ' · ' + afEsc(sec.package) : ''}</small></h4>
-                    <table>
-                        <thead><tr><th>Parameter</th><th>Result</th><th>Unit</th><th>Reference (${afEsc(b.gender)})</th><th></th></tr></thead>
-                        <tbody>${sec.rows.map(r => `
-                            <tr data-key="${afEsc(r.key)}">
-                                <td>${afEsc(r.name)}${r.calc ? ' <small class="lab-calc">auto</small>' : ''}</td>
-                                <td>${r.type === 'choice'
-                                    ? `<select data-field>${['', ...r.choices].map(c => `<option ${String(r.raw) === c ? 'selected' : ''}>${afEsc(c)}</option>`).join('')}</select>`
-                                    : (r.type === 'text'
-                                        ? `<textarea data-field rows="2">${afEsc(r.raw)}</textarea>`
-                                        : `<input data-field type="number" step="any" inputmode="decimal" value="${afEsc(r.raw)}" ${r.calc ? 'placeholder="auto"' : ''}>`)}</td>
-                                <td>${afEsc(r.unit)}</td>
-                                <td class="lab-ref">${afEsc(r.ref)}</td>
-                                <td class="lab-flag"></td>
-                            </tr>`).join('')}</tbody>
-                    </table>
-                </section>`).join('')}
-            <div class="form-group"><label>Remarks / pathologist's comment <small>(shown on the report)</small></label>
-                <textarea id="lab-remarks" rows="3" placeholder="e.g. Microcytic picture. Advised iron studies.">${afEsc(b.remarks || '')}</textarea></div>
-            <div class="form-group"><label>Verified by</label><input id="lab-reported-by" value="${afEsc(b.reported_by || '')}" placeholder="Pathologist name, e.g. Dr. A. Mehta (MD Pathology)"></div>
-            <div class="lab-res-actions">
-                <button class="btn btn--outline" type="button" onclick="saveLabResults(false)"><i class="fas fa-floppy-disk"></i> Save draft</button>
-                <button class="btn btn--success" type="button" onclick="saveLabResults(true)"><i class="fas fa-paper-plane"></i> ${b.status === 'Report Ready' ? 'Update report' : 'Publish report to patient'}</button>
+        <div class="lr2">
+            <div class="lr2-patient">
+                <span class="lr2-avatar">${afEsc(initials(b.patient_name))}</span>
+                <div><b>${afEsc(b.patient_name)}</b><small>${afEsc(b.age)} yrs · ${afEsc(b.gender)} · ${afEsc(b.phone)}</small></div>
+                <span class="lr2-tag"><i class="fas fa-vial"></i> Collected ${afEsc(String(b.collected_at || '—').slice(0, 16))}</span>
+                ${b.referred_by ? `<span class="lr2-tag"><i class="fas fa-user-doctor"></i> ${afEsc(b.referred_by)}</span>` : ''}
+                <span class="lr2-tag lr2-tag--status">${afEsc(b.status)}</span>
             </div>
+            <div class="lr2-main">
+                <nav class="lr2-tests" id="lr2Tests" aria-label="Tests"></nav>
+                <section class="lr2-pane" id="lr2Pane"></section>
+            </div>
+            <footer class="lr2-foot">
+                <div class="lr2-progress"><span id="lr2ProgText"></span><i><b id="lr2ProgBar"></b></i></div>
+                <div class="lr2-actions">
+                    <button class="btn btn--outline" type="button" onclick="saveLabResults(false)"><i class="fas fa-floppy-disk"></i> Save draft</button>
+                    <button class="btn btn--success" type="button" onclick="saveLabResults(true)"><i class="fas fa-paper-plane"></i> ${b.status === 'Report Ready' ? 'Update report' : 'Publish report'}</button>
+                </div>
+            </footer>
         </div>`;
-    const body = document.getElementById('lab-res-body');
-    body.addEventListener('input', labLiveCheck);
-    body.addEventListener('change', labLiveCheck);
-    labLiveCheck();
+    lrShow(0);
     document.getElementById('labResultModal').style.display = 'flex';
 }
 
-// Fills in the calculated values and shows High / Low next to each value while typing
-function labLiveCheck() {
-    if (!labEditing) return;
-    labEditing.report.forEach(sec => {
-        const box = document.querySelector(`.lab-res-test[data-code="${CSS.escape(sec.code)}"]`);
-        if (!box) return;
-        const values = {};
-        sec.rows.forEach(r => {
-            if (r.type !== 'number') return;
-            const el = box.querySelector(`tr[data-key="${CSS.escape(r.key)}"] [data-field]`);
-            values[r.key] = el.value === '' ? null : +el.value;
-        });
-        sec.rows.forEach(r => {
-            const tr = box.querySelector(`tr[data-key="${CSS.escape(r.key)}"]`), el = tr.querySelector('[data-field]');
-            let v = el.value;
-            if (r.calc && el.value === '') {
-                const ok = !r.calc_if || labEval(r.calc_if, values);
-                const c = ok ? labEval(r.formula, values) : null;
-                el.placeholder = c === null || !isFinite(c) ? 'auto' : (+c).toFixed(r.decimals);
-                v = c === null || !isFinite(c) ? '' : c;
-            }
-            const f = labFlag(r, v);
-            tr.querySelector('.lab-flag').innerHTML = f ? `<span class="badge danger">${{ H: '▲ High', L: '▼ Low', A: 'Abnormal' }[f]}</span>` : (v !== '' ? '<span class="lab-ok"><i class="fas fa-check"></i></span>' : '');
-            tr.classList.toggle('is-flag', !!f);
-        });
+// Number values of one test with the automatic ones worked out; {values, shown: {key: value}, errors}
+function lrCompute(sec) {
+    const typed = labEditing.values[sec.code], nums = {}, shown = {}, errors = {};
+    sec.rows.forEach(r => {
+        if (r.type !== 'number') { shown[r.key] = typed[r.key] || ''; return; }
+        const c = lrCheck(r, typed[r.key]);
+        if (c.err) errors[r.key] = c.err;
+        nums[r.key] = c.num === undefined ? null : c.num;
+        shown[r.key] = c.num === undefined ? '' : c.num;
     });
+    sec.rows.forEach(r => {
+        if (r.type !== 'number' || !r.calc || (typed[r.key] || '') !== '') return;
+        const okIf = !r.calc_if || labEval(r.calc_if, nums);
+        const v = okIf ? labEval(r.formula, nums) : null;
+        if (v !== null && isFinite(v) && v >= 0) { nums[r.key] = +v.toFixed(r.decimals); shown[r.key] = nums[r.key]; }
+    });
+    return { nums, shown, errors };
 }
 
-function saveLabResults(publish) {
-    const b = labEditing, results = {};
-    document.querySelectorAll('#lab-res-body .lab-res-test').forEach(box => {
-        const code = box.dataset.code;
-        results[code] = {};
-        box.querySelectorAll('tr[data-key]').forEach(tr => { results[code][tr.dataset.key] = tr.querySelector('[data-field]').value.trim(); });
+function lrStats(sec) {
+    const { shown, errors } = lrCompute(sec);
+    const manual = sec.rows.filter(r => !r.calc);
+    return {
+        filled: manual.filter(r => shown[r.key] !== '' && !errors[r.key]).length, total: manual.length,
+        flagged: sec.rows.filter(r => shown[r.key] !== '' && labFlag(r, shown[r.key])).length,
+        errors: Object.keys(errors).length
+    };
+}
+
+function lrNav() {
+    const secs = labEditing.b.report;
+    let filled = 0, total = 0, flagged = 0;
+    document.getElementById('lr2Tests').innerHTML = secs.map((sec, i) => {
+        const s = lrStats(sec);
+        filled += s.filled; total += s.total; flagged += s.flagged;
+        const state = s.errors ? 'is-err' : (s.filled === s.total ? 'is-done' : (s.filled ? 'is-part' : ''));
+        return `<button type="button" class="lr2-test ${state} ${labEditing.active === i ? 'active' : ''}" onclick="lrShow(${i})">
+            <span class="lr2-ring" style="--p: ${s.total ? s.filled / s.total : 0};"><i class="fas ${s.errors ? 'fa-exclamation' : (s.filled === s.total ? 'fa-check' : 'fa-flask')}"></i></span>
+            <span class="lr2-test-name">${afEsc(sec.name)}<small>${s.filled}/${s.total} filled${s.flagged ? ` · <em>${s.flagged} flagged</em>` : ''}</small></span>
+        </button>`;
+    }).join('') + `<button type="button" class="lr2-test lr2-test--sum ${labEditing.active === secs.length ? 'active' : ''}" onclick="lrShow(${secs.length})">
+            <span class="lr2-ring"><i class="fas fa-file-signature"></i></span><span class="lr2-test-name">Review &amp; sign off<small>Remarks, verified by</small></span></button>`;
+    document.getElementById('lr2ProgText').innerHTML = `<b>${filled} of ${total}</b> values entered${flagged ? ` · <em>${flagged} outside the normal range</em>` : ''} · empty fields are left off the report`;
+    document.getElementById('lr2ProgBar').style.width = (total ? filled / total * 100 : 0) + '%';
+}
+
+function lrShow(i) {
+    lrKeepSummary();
+    labEditing.active = i;
+    const secs = labEditing.b.report, pane = document.getElementById('lr2Pane');
+    if (i >= secs.length) {
+        pane.innerHTML = lrSummaryHtml();
+    } else {
+        const sec = secs[i], typed = labEditing.values[sec.code];
+        const hasChoice = sec.rows.some(r => r.type === 'choice' && r.normal.length);
+        pane.innerHTML = `
+            <div class="lr2-pane-head">
+                <div><h4>${afEsc(sec.name)}</h4><small>${afEsc(sec.sample)}${sec.package ? ' · ' + afEsc(sec.package) : ''} · reference for ${afEsc(labEditing.b.gender)}</small></div>
+                <div class="lr2-tools">
+                    ${hasChoice ? `<button type="button" class="btn btn--sm btn--outline" onclick="lrSetNormal()" title="Choose the normal finding where nothing is chosen yet"><i class="fas fa-wand-magic-sparkles"></i> Fill normal findings</button>` : ''}
+                    <button type="button" class="btn btn--sm btn--outline" onclick="lrClearTest()"><i class="fas fa-eraser"></i> Clear</button>
+                </div>
+            </div>
+            <div class="lr2-warn" id="lr2Warn" hidden></div>
+            <div class="lr2-grid">${sec.rows.map(r => `
+                <div class="lr2-field ${r.type === 'text' ? 'is-wide' : ''} ${r.calc ? 'is-calc' : ''}" data-key="${afEsc(r.key)}">
+                    <label for="lr-${afEsc(r.key)}">${afEsc(r.name)}${r.calc ? ' <span class="lr2-auto" title="Worked out from the other values; type to override">auto</span>' : ''}</label>
+                    ${r.type === 'choice'
+                        ? `<div class="lr2-choices">${r.choices.map(c => `<button type="button" class="${typed[r.key] === c ? 'active' : ''} ${r.normal.includes(c) ? 'is-normal' : ''}" onclick="lrChoose('${afEsc(r.key)}', this.dataset.v)" data-v="${afEsc(c)}">${afEsc(c)}</button>`).join('')}</div>`
+                        : (r.type === 'text'
+                            ? `<textarea id="lr-${afEsc(r.key)}" rows="2" data-key="${afEsc(r.key)}" placeholder="Type the finding">${afEsc(typed[r.key] || '')}</textarea>`
+                            : `<div class="lr2-input"><input id="lr-${afEsc(r.key)}" data-key="${afEsc(r.key)}" type="text" inputmode="decimal" autocomplete="off" value="${afEsc(typed[r.key] || '')}" placeholder="${r.calc ? 'auto' : '—'}"><span>${afEsc(r.unit)}</span></div>`)}
+                    <div class="lr2-meta"><span class="lr2-ref">${r.ref ? 'Normal: ' + afEsc(r.ref) : ''}</span><span class="lr2-pill"></span></div>
+                </div>`).join('')}</div>
+            <div class="lr2-pane-nav">
+                <button type="button" class="btn btn--outline btn--sm" ${i === 0 ? 'disabled' : ''} onclick="lrShow(${i - 1})"><i class="fas fa-arrow-left"></i> Previous</button>
+                <button type="button" class="btn btn--sm" onclick="lrShow(${i + 1})">${i === secs.length - 1 ? 'Review &amp; sign off' : 'Next: ' + afEsc(secs[i + 1].name)} <i class="fas fa-arrow-right"></i></button>
+            </div>`;
+        pane.querySelectorAll('input[data-key], textarea[data-key]').forEach(el => {
+            el.addEventListener('input', () => { typed[el.dataset.key] = el.value; lrRefresh(); });
+            el.addEventListener('keydown', e => { if (e.key === 'Enter' && el.tagName === 'INPUT') { e.preventDefault(); lrNextField(el); } });
+        });
+        lrRefresh();
+        const first = [...pane.querySelectorAll('input[data-key]')].find(el => !el.value && !el.closest('.is-calc'));
+        if (first) setTimeout(() => first.focus(), 50);
+    }
+    pane.scrollTop = 0;
+    lrNav();
+}
+
+// Enter jumps to the next empty box, then on to the next test
+function lrNextField(el) {
+    const boxes = [...document.querySelectorAll('#lr2Pane input[data-key]')];
+    const next = boxes.slice(boxes.indexOf(el) + 1).find(x => !x.closest('.is-calc'));
+    if (next) next.focus();
+    else lrShow(labEditing.active + 1);
+}
+
+function lrChoose(key, value) {
+    const sec = labEditing.b.report[labEditing.active], typed = labEditing.values[sec.code];
+    typed[key] = typed[key] === value ? '' : value; // pressing the chosen one again clears it
+    document.querySelectorAll(`#lr2Pane .lr2-field[data-key="${CSS.escape(key)}"] .lr2-choices button`).forEach(btn => btn.classList.toggle('active', btn.dataset.v === typed[key]));
+    lrRefresh();
+}
+
+function lrSetNormal() {
+    const sec = labEditing.b.report[labEditing.active], typed = labEditing.values[sec.code];
+    sec.rows.forEach(r => { if (r.type === 'choice' && r.normal.length && !typed[r.key]) typed[r.key] = r.normal[0]; });
+    lrShow(labEditing.active);
+}
+
+async function lrClearTest() {
+    const sec = labEditing.b.report[labEditing.active];
+    if (!await shConfirm(`Clear every value of ${sec.name}?`, { yes: 'Clear', danger: true })) return;
+    Object.keys(labEditing.values[sec.code]).forEach(k => { labEditing.values[sec.code][k] = ''; });
+    lrShow(labEditing.active);
+}
+
+// Updates the flags, automatic values and warnings of the open test without redrawing it
+function lrRefresh() {
+    const sec = labEditing.b.report[labEditing.active];
+    if (!sec) return;
+    const { shown, errors, nums } = lrCompute(sec), typed = labEditing.values[sec.code];
+    sec.rows.forEach(r => {
+        const box = document.querySelector(`#lr2Pane .lr2-field[data-key="${CSS.escape(r.key)}"]`);
+        if (!box) return;
+        const input = box.querySelector('input');
+        if (input && r.calc && (typed[r.key] || '') === '') input.placeholder = shown[r.key] !== '' ? String(shown[r.key]) : 'auto';
+        const f = errors[r.key] ? '' : labFlag(r, shown[r.key]);
+        box.classList.remove('is-H', 'is-L', 'is-A', 'is-ok', 'is-err');
+        const pill = box.querySelector('.lr2-pill');
+        if (errors[r.key]) { box.classList.add('is-err'); pill.innerHTML = `<i class="fas fa-circle-xmark"></i> ${errors[r.key]}`; }
+        else if (f) { box.classList.add('is-' + f); pill.innerHTML = `<i class="fas ${LR_FLAG[f][1]}"></i> ${LR_FLAG[f][0]}`; }
+        else if (shown[r.key] !== '') { box.classList.add('is-ok'); pill.innerHTML = '<i class="fas fa-check"></i> Normal'; }
+        else pill.innerHTML = '';
     });
-    labPost('saveResults', {
-        id: b.id, results: JSON.stringify(results), publish: publish ? '1' : '0',
-        remarks: document.getElementById('lab-remarks').value, reported_by: document.getElementById('lab-reported-by').value
-    }).then(res => {
+    // the differential count of a CBC must add up to about 100 %
+    const warn = document.getElementById('lr2Warn');
+    const diff = ['neut', 'lymph', 'mono', 'eos', 'baso'];
+    if (warn && diff.every(k => sec.rows.some(r => r.key === k)) && diff.every(k => nums[k] !== null && nums[k] !== undefined)) {
+        const sum = diff.reduce((s, k) => s + nums[k], 0);
+        warn.hidden = Math.abs(sum - 100) <= 2;
+        warn.innerHTML = `<i class="fas fa-triangle-exclamation"></i> The differential count adds up to <b>${+sum.toFixed(1)}%</b> - it should be 100%. Please check Neutrophils to Basophils.`;
+    } else if (warn) warn.hidden = true;
+    lrNav();
+}
+
+function lrSummaryHtml() {
+    const secs = labEditing.b.report;
+    const flaggedRows = [];
+    secs.forEach(sec => {
+        const { shown } = lrCompute(sec);
+        sec.rows.forEach(r => { const f = labFlag(r, shown[r.key]); if (shown[r.key] !== '' && f) flaggedRows.push({ sec, r, v: shown[r.key], f }); });
+    });
+    return `
+        <div class="lr2-pane-head"><div><h4>Review &amp; sign off</h4><small>Check the values outside the normal range, add a remark and publish.</small></div></div>
+        <div class="lr2-review">
+            ${secs.map((sec, i) => { const s = lrStats(sec); return `<button type="button" class="lr2-review-row" onclick="lrShow(${i})">
+                <span>${afEsc(sec.name)}</span><b class="${s.filled === s.total ? 'ok' : (s.filled ? 'part' : 'none')}">${s.filled ? `${s.filled}/${s.total} entered` : 'Result awaited'}</b></button>`; }).join('')}
+        </div>
+        <h5 class="lr2-h5">Outside the normal range (${flaggedRows.length})</h5>
+        ${flaggedRows.length ? `<div class="lr2-flags">${flaggedRows.map(x => `<span class="lr2-flagchip is-${x.f}"><i class="fas ${LR_FLAG[x.f][1]}"></i> ${afEsc(x.r.name)}: <b>${afEsc(x.v)} ${afEsc(x.r.unit)}</b></span>`).join('')}</div>`
+            : '<p class="muted">All entered values are within the normal range.</p>'}
+        <div class="form-group"><label for="lab-remarks">Remarks / pathologist's comment <small>(printed on the report)</small></label>
+            <textarea id="lab-remarks" rows="3" placeholder="e.g. Microcytic picture. Advised iron studies.">${afEsc(labEditing.remarks)}</textarea></div>
+        <div class="form-group"><label for="lab-reported-by">Verified by</label>
+            <input id="lab-reported-by" value="${afEsc(labEditing.reportedBy)}" placeholder="Pathologist name, e.g. Dr. A. Mehta (MD Pathology)"></div>`;
+}
+
+function lrKeepSummary() {
+    const rem = document.getElementById('lab-remarks'), by = document.getElementById('lab-reported-by');
+    if (rem && labEditing) labEditing.remarks = rem.value;
+    if (by && labEditing) labEditing.reportedBy = by.value;
+}
+
+async function saveLabResults(publish) {
+    lrKeepSummary();
+    const e = labEditing, secs = e.b.report;
+    // a wrong value is shown where it is, never sent
+    const bad = secs.findIndex(sec => lrStats(sec).errors);
+    if (bad >= 0) { lrShow(bad); return shToast(`Please correct the marked value in ${secs[bad].name}.`, 'error'); }
+    let filled = 0, total = 0;
+    secs.forEach(sec => { const s = lrStats(sec); filled += s.filled; total += s.total; });
+    if (publish && !filled) return shToast('Enter at least one result before publishing.', 'error');
+    if (publish && filled < total && !await shConfirm(`${total - filled} of ${total} values are still empty. The report will show only the entered values, and tests without any value as "Result awaited". Publish now?`, { yes: 'Publish', no: 'Keep editing' })) return;
+    const results = {};
+    secs.forEach(sec => { results[sec.code] = {}; Object.entries(e.values[sec.code]).forEach(([k, v]) => { results[sec.code][k] = String(v ?? '').replace(/,/g, '').trim(); }); });
+    labPost('saveResults', { id: e.b.id, results: JSON.stringify(results), publish: publish ? '1' : '0', remarks: e.remarks, reported_by: e.reportedBy }).then(res => {
         if (res.status !== 'success') return shToast(res.message, 'error');
         shToast(publish ? 'Report published. The patient has been emailed and can open it on the website.' : 'Results saved as draft.', 'success');
         closeLabModal('labResultModal');
@@ -296,6 +458,6 @@ function saveLabTest(e, id) {
 (function labBadgeTimer() {
     clearInterval(labTimer);
     labTimer = setInterval(() => {
-        if (document.getElementById('dashboard-view').offsetParent !== null) loadLab();
+        if (document.getElementById('dashboard-view').offsetParent !== null && (typeof adminCan !== 'function' || adminCan('lab'))) loadLab();
     }, 30000);
 })();

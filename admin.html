@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <link rel="stylesheet" href="popups.css?v=1">
     <link rel="stylesheet" href="admin.css?v=4">
-    <link rel="stylesheet" href="admin-features.css?v=10">
+    <link rel="stylesheet" href="admin-features.css?v=15">
 </head>
 <body>
 
@@ -104,6 +104,11 @@
                     <li data-tab="analytics-tab" title="Analytics"><i class="fas fa-chart-line"></i> <span class="nav-label">Analytics</span></li>
                     <li data-tab="notifications-tab" title="Notifications"><i class="fas fa-envelope"></i> <span class="nav-label">Notifications</span></li>
                 </ul>
+
+                <div class="nav-group">System</div>
+                <ul class="nav-links">
+                    <li data-tab="settings-tab" title="Settings"><i class="fas fa-gear"></i> <span class="nav-label">Settings</span></li>
+                </ul>
             </nav>
 
             <div class="sidebar-foot">
@@ -119,10 +124,10 @@
                 <div class="crumbs"><span>Administration</span><i class="fas fa-chevron-right"></i><b id="page-crumb">Appointments</b></div>
                 <div class="topbar-right">
                     <span class="topbar-date" id="current-date"></span>
-                    <button class="icon-btn" type="button" title="Add administrator" aria-label="Add administrator" onclick="openAdminModal()"><i class="fas fa-user-shield"></i></button>
+                    <button class="icon-btn" type="button" id="admin-users-btn" title="Staff users &amp; roles" aria-label="Staff users and roles" onclick="openSettingsUsers()"><i class="fas fa-user-shield"></i></button>
                     <div class="user-info">
                         <span class="avatar avatar--dark" id="admin-avatar">A</span>
-                        <div><b id="admin-name-display">Admin</b><small>Administrator</small></div>
+                        <div><b id="admin-name-display">Admin</b><small id="admin-role-display">Administrator</small></div>
                     </div>
                 </div>
             </header>
@@ -256,6 +261,35 @@
                                     <tbody id="amb-bookings-table-body"></tbody>
                                 </table>
                             </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Settings: staff users and roles ---------------- -->
+                    <section id="settings-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Settings</h1><p>Create roles, choose which sections each role can open, and give every staff member their own login. They sign in on this same admin page and see only the sections of their role.</p></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Staff users <span class="count" id="st-users-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="st-users-search" placeholder="Search name, email, role" oninput="renderStaffUsers()"></div>
+                                    <button class="btn" type="button" onclick="openStaffUser()"><i class="fas fa-user-plus"></i> Add user</button>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Staff member</th><th>Role</th><th>Can open</th><th>Status</th><th>Last sign-in</th><th>Action</th></tr></thead>
+                                    <tbody id="st-users-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2>Roles <span class="count" id="st-roles-count">0</span></h2>
+                                <div class="card-tools"><button class="btn" type="button" onclick="openRole()"><i class="fas fa-plus"></i> Add role</button></div>
+                            </div>
+                            <div class="card-body"><div class="st-roles" id="st-roles"></div></div>
                         </div>
                     </section>
 
@@ -453,6 +487,28 @@
                     <tbody id="rec-body"></tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <!-- Settings: role add / edit -->
+    <div class="modal" id="roleModal" style="display:none;">
+        <div class="modal-content st-modal">
+            <div class="modal-header">
+                <h3 id="role-title">Add role</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeSettingsModal('roleModal')">&times;</button>
+            </div>
+            <div id="role-body"></div>
+        </div>
+    </div>
+
+    <!-- Settings: staff user add / edit -->
+    <div class="modal" id="staffUserModal" style="display:none;">
+        <div class="modal-content st-modal">
+            <div class="modal-header">
+                <h3 id="staff-title">Add staff user</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeSettingsModal('staffUserModal')">&times;</button>
+            </div>
+            <div id="staff-body"></div>
         </div>
     </div>
 
@@ -657,9 +713,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="popups.js?v=1"></script>
-    <script src="admin.js?v=5"></script>
-    <script src="admin-features.js?v=22"></script>
-    <script src="lab-report.js?v=1"></script>
-    <script src="admin-lab.js?v=1"></script>
+    <script src="admin.js?v=8"></script>
+    <script src="admin-features.js?v=25"></script>
+    <script src="lab-report.js?v=2"></script>
+    <script src="admin-lab.js?v=4"></script>
+    <script src="admin-settings.js?v=1"></script>
 </body>
 </html>

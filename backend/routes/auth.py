@@ -5,8 +5,9 @@ from flask import Blueprint, jsonify, session
 
 from .. import config
 from ..db import db, next_id, now
+from ..permissions import tabs_for
 from ..mail import send_email, send_login_email
-from ..utils import (background, fail, is_admin, login_session, new_token, norm_email, ok, post, require_user,
+from ..utils import (background, current_admin, fail, login_session, new_token, norm_email, ok, post, require_perm, require_user,
                      text, to_int, valid_email)
 
 bp = Blueprint("auth", __name__)
@@ -146,26 +147,36 @@ def update_profile():
 
 @bp.post("/api/admin/login")
 def admin_login():
+    """Every staff login (Super Admin, Receptionist, Lab Technician ...) signs in here. What they
+    see afterwards depends on the sections of their role."""
     row = db.admins.find_one({"email": norm_email(post("email"))})
     if not row:
         return text("Admin not found!")
     if not check_pw(post("password"), row.get("password")):
         return text("Incorrect Password!")
+    if row.get("active", True) is False:
+        return text("This staff account is switched off. Ask the Super Admin to turn it on.")
     login_session("admin_email", row["email"])
-    return jsonify({"status": "success", "name": row.get("name"), "email": row["email"]})
+    db.admins.update_one({"_id": row["_id"]}, {"$set": {"last_login": now()}})
+    a = current_admin()
+    return jsonify({"status": "success", "name": a["name"], "email": a["email"], "role": a["role"],
+                    "super": a["super"], "permissions": a["perms"], "tabs": tabs_for(a["perms"])})
 
 
 @bp.post("/api/admin/register")
 def admin_register():
-    """A new administrator can only be created by a signed-in administrator. The single exception
-    is a brand-new installation with no administrator at all."""
+    """A brand-new installation with no staff account creates its first Super Admin here. After
+    that, staff accounts are made in Settings > Users (needs the Settings section)."""
     first = db.admins.count_documents({}) == 0
-    if not first and not is_admin():
-        return text("Error: Only a signed-in administrator can create administrator accounts.", 401)
+    if not first:
+        require_perm("settings", as_text=True)
     name, email, password = post("name"), norm_email(post("email")), post("password")
     if len(name) < 3 or not valid_email(email) or len(password) < 8:
         return text("Error: Enter a name, a valid email and a password of at least 8 characters.")
     if db.admins.find_one({"email": email}):
         return text("Admin email already registered!")
-    db.admins.insert_one({"_id": next_id("admins"), "name": name[:100], "email": email, "password": hash_pw(password)})
+    from .settings import super_role_id
+    role_id = super_role_id() if first else (to_int(post("role_id")) or super_role_id())
+    db.admins.insert_one({"_id": next_id("admins"), "name": name[:100], "email": email, "password": hash_pw(password),
+                          "role_id": role_id, "active": True, "created_at": now()})
     return text("success")

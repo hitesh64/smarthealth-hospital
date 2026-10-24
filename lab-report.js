@@ -28,20 +28,24 @@ function lbReportHtml(b, labInfo) {
         </section>
         ${groups.map(g => `
             ${g.package ? `<h2 class="lr-pkg">${shEsc(g.package)}</h2>` : ''}
-            ${g.sections.map(sec => `
+            ${g.sections.map(sec => {
+                // only the values the lab has entered are printed; a test with none yet says so
+                const rows = sec.rows.filter(r => r.value !== '' && r.value !== null && r.value !== undefined);
+                return `
             <section class="lr-test">
                 <h3>${shEsc(sec.name)} <small>${shEsc(sec.sample)}</small></h3>
-                <table>
+                ${rows.length ? `<table>
                     <thead><tr><th>Test</th><th>Result</th><th>Unit</th><th>Reference range</th></tr></thead>
-                    <tbody>${sec.rows.map(r => `
+                    <tbody>${rows.map(r => `
                         <tr class="${r.flag ? 'is-flag' : ''}">
                             <td>${shEsc(r.name)}${r.calc ? ' <span class="lr-calc">calc.</span>' : ''}</td>
                             <td class="lr-val">${r.value === '' || r.value === null ? '—' : shEsc(r.value)}${r.flag ? ` <span class="lr-flag lr-${r.flag}">${LB_FLAG[r.flag][1]} ${LB_FLAG[r.flag][0]}</span>` : ''}</td>
                             <td>${shEsc(r.unit)}</td>
                             <td class="lr-ref">${shEsc(r.ref)}</td>
                         </tr>`).join('')}</tbody>
-                </table>
-            </section>`).join('')}`).join('')}
+                </table>` : '<p class="lr-awaited">Result awaited - this test will be added to the report when it is ready.</p>'}
+            </section>`;
+            }).join('')}`).join('')}
         ${b.remarks ? `<section class="lr-remarks"><b>Remarks</b><p>${shEsc(b.remarks)}</p></section>` : ''}
         <footer class="lr-foot">
             <div><small>Verified by</small><b>${shEsc(b.reported_by || 'Laboratory')}</b></div>
@@ -72,6 +76,7 @@ const LB_REPORT_CSS = `
     .lr tr.is-flag td.lr-val { color: #b91c1c; }
     .lr-flag { font-size: 10.5px; font-weight: 700; }
     .lr-calc { font-size: 10px; color: #94a3b8; }
+    .lr-awaited { margin: 0; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-style: italic; color: #64748b; background: #f1f5f9; }
     .lr-remarks { margin-top: 16px; padding: 10px 12px; border-left: 3px solid #0d9488; background: #f0fdfa; font-size: 12.5px; }
     .lr-remarks p { margin: 4px 0 0; white-space: pre-line; }
     .lr-foot { margin-top: 22px; padding-top: 10px; border-top: 1px solid #cbd5e1; display: flex; gap: 20px; align-items: flex-start; }

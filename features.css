@@ -177,3 +177,24 @@
     .modal .modal-content { width: 94vw; max-height: 92vh; overflow-y: auto; }
     .slot-grid { grid-template-columns: 1fr 1fr !important; }
 }
+
+/* ---------- route maps: navigation-app look (start dot, blue route, destination pin, distance label) ---------- */
+.rt-start { position: relative; width: 22px; height: 22px; }
+.rt-start i { position: absolute; inset: 0; border-radius: 50%; background: #1a73e8; border: 4px solid #fff; box-shadow: 0 2px 8px rgba(26,115,232,.55); }
+.rt-start i::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; background: rgba(26,115,232,.18); animation: rtPulse 2.4s ease-out infinite; z-index: -1; }
+.rt-start span { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); padding: 3px 9px; border-radius: 99px; white-space: nowrap; font: 700 11px/1.4 Inter, system-ui, sans-serif; color: #1a73e8; background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,.18); }
+@keyframes rtPulse { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
+.rt-pin { position: relative; width: 34px; height: 44px; filter: drop-shadow(0 4px 6px rgba(15,23,42,.35)); }
+.rt-pin::before { content: ''; position: absolute; left: 3px; top: 0; width: 28px; height: 28px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); transform-origin: center; background: #1a73e8; top: 2px; }
+.rt-pin i { position: absolute; left: 12px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.rt-amb { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #fff; background: #dc2626; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(220,38,38,.55); }
+.rt-amb.is-live { animation: rtLive 1.6s ease-in-out infinite; }
+@keyframes rtLive { 50% { box-shadow: 0 0 0 8px rgba(220,38,38,.18), 0 4px 12px rgba(220,38,38,.55); } }
+.rt-chip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; max-width: 290px; padding: 8px 14px; border-radius: 99px; font: 600 13px/1.35 Inter, system-ui, sans-serif; color: #1a73e8; background: #fff; border: 1.5px solid #1a73e8; box-shadow: 0 4px 14px rgba(15,23,42,.18); }
+.rt-chip b { font-size: 14px; color: #0f172a; }
+.rt-chip span { color: #475569; font-weight: 500; }
+.rt-chip em { width: 100%; font-style: normal; font-size: 11.5px; font-weight: 500; color: #b45309; }
+.rt-chip:has(em), .rt-chip:has(span:only-of-type) { border-radius: 14px; }
+
+/* the street map in soft colours, so routes and pins are easy to see */
+.rt-tiles { filter: saturate(.35) brightness(1.06) contrast(.92); }

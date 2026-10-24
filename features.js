@@ -240,9 +240,9 @@ function sosRender(data) {
     if (typeof L === 'undefined') return;
     if (!sos.map) {
         sos.map = L.map('sosMap', { zoomControl: false }).setView([hasLoc ? a.lat : hospital.lat, hasLoc ? a.lng : hospital.lng], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(sos.map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(sos.map);
         setTimeout(() => sos.map && sos.map.invalidateSize(), 150);
-        L.marker([hospital.lat, hospital.lng], { icon: shPin('hosp', 'fa-hospital') }).addTo(sos.map).bindPopup(shEsc(hospital.name));
+        L.marker([hospital.lat, hospital.lng], { icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="rt-start"><i></i><span>Hospital</span></div>' }), zIndexOffset: 500 }).addTo(sos.map).bindPopup(shEsc(hospital.name));
     }
     // road route from the ambulance's start to the caller: grey where it has driven, red still to go
     if (data.route && typeof amDrawRoute === 'function') {
@@ -254,7 +254,7 @@ function sosRender(data) {
         const p = [parseFloat(a.lat), parseFloat(a.lng)];
         if (!sos.meMarker) {
             // Draggable: on a laptop/desktop there is no GPS, so the caller can correct the pin by hand
-            sos.meMarker = L.marker(p, { icon: shPin('me', 'fa-person'), draggable: true }).addTo(sos.map).bindPopup('You');
+            sos.meMarker = L.marker(p, { icon: L.divIcon({ className: '', iconSize: [34, 44], iconAnchor: [17, 42], html: '<div class="rt-pin"><i></i></div>' }), draggable: true, zIndexOffset: 600 }).addTo(sos.map).bindPopup('You');
             sos.meMarker.on('dragstart', () => { sos.dragging = true; });
             sos.meMarker.on('dragend', () => {
                 const at = sos.meMarker.getLatLng();
@@ -287,7 +287,7 @@ function sosRender(data) {
     if (amb && amb.lat !== null) {
         const p = [parseFloat(amb.lat), parseFloat(amb.lng)];
         if (sos.ambMarker) (typeof amGlide === 'function' ? amGlide(sos.ambMarker, p, 1200) : sos.ambMarker.setLatLng(p));
-        else sos.ambMarker = L.marker(p, { icon: shPin('amb', 'fa-truck-medical'), zIndexOffset: 900 }).addTo(sos.map).bindPopup('Ambulance');
+        else sos.ambMarker = L.marker(p, { icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20], html: '<div class="rt-amb"><i class="fas fa-truck-medical"></i></div>' }), zIndexOffset: 900 }).addTo(sos.map).bindPopup('Ambulance');
         points.push(p);
         if (sos.fitted && !sos.map.getBounds().contains(p)) sos.fitted = false; // ambulance drove off screen: re-frame
     }

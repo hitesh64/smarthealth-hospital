@@ -14,6 +14,7 @@ A parameter is a dict:
     decimals digits shown for a number
 """
 import ast
+import math
 import operator
 
 P = dict  # short alias for readability below
@@ -351,7 +352,9 @@ def fill_calculated(parameters, raw):
                 if p.get("calc_if") and not _eval(p["calc_if"], values):
                     continue
                 v = _eval(p["calc"], values)
-                values[p["key"]] = round(v, p.get("decimals", 1) + 1)
-            except (KeyError, ZeroDivisionError, ValueError):
+                # a negative or endless result means one of the inputs is wrong: leave it empty
+                if math.isfinite(v) and v >= 0:
+                    values[p["key"]] = round(v, p.get("decimals", 1) + 1)
+            except (KeyError, ZeroDivisionError, ValueError, OverflowError):
                 pass
     return values

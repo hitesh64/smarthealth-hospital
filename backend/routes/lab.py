@@ -15,7 +15,8 @@ from .. import config
 from ..db import db, next_id, now, out
 from ..lab_catalog import CATEGORY_ORDER, TESTS, fill_calculated, flag_for, fmt_num, range_for, ref_text
 from ..mail import send_email
-from ..utils import (arg, background, fail, is_admin, nice_date, ok, post, require_admin, require_user, slot_datetime,
+from ..permissions import LAB_ADMIN_ACTIONS
+from ..utils import (arg, background, fail, nice_date, ok, post, require_admin, require_perm, require_user, slot_datetime,
                      to_float, to_int, today_ist, valid_ymd)
 
 bp = Blueprint("lab", __name__)
@@ -300,22 +301,33 @@ def number_or_none(v):
 def lab_admin():
     admin_email = require_admin()
     action = arg("action")
+    if action in LAB_ADMIN_ACTIONS:
+        require_perm(LAB_ADMIN_ACTIONS[action])
 
     if action == "list":
         today = today_ist()
         rows = list(db.lab_bookings.find().sort("_id", -1).limit(300))
-        all_rows = list(db.lab_bookings.find({}, {"status": 1, "slot_date": 1, "total": 1, "created_at": 1}))
+        all_rows = list(db.lab_bookings.find({}, {"status": 1, "slot_date": 1, "total": 1, "created_at": 1, "collected_at": 1}))
         stats = {"total": len(all_rows), "booked": 0, "collected": 0, "processing": 0, "ready": 0, "cancelled": 0,
-                 "today_slots": 0, "revenue": 0}
+                 "today_slots": 0, "revenue": 0, "revenue_today": 0, "revenue_month": 0, "to_collect": 0, "paid_count": 0}
+        month = today[:7]
         for b in all_rows:
+            amount = b.get("total", 0) or 0
+            # payment is taken when the sample is collected, so that is when a booking becomes revenue
+            if b["status"] in ("Sample Collected", "Processing", "Report Ready"):
+                stats["revenue"] += amount
+                stats["paid_count"] += 1
+                day = b["collected_at"].astimezone(config.IST).strftime("%Y-%m-%d") if b.get("collected_at") else ""
+                stats["revenue_today"] += amount if day == today else 0
+                stats["revenue_month"] += amount if day[:7] == month else 0
+            elif b["status"] == "Booked":
+                stats["to_collect"] += amount
             key = {"Booked": "booked", "Sample Collected": "collected", "Processing": "processing",
                    "Report Ready": "ready", "Cancelled": "cancelled"}.get(b["status"])
             if key:
                 stats[key] += 1
             if b.get("slot_date") == today and b["status"] != "Cancelled":
                 stats["today_slots"] += 1
-            if b["status"] == "Report Ready":
-                stats["revenue"] += b.get("total", 0)
         return ok(bookings=[booking_row(b, admin=True) for b in rows], stats=stats, waiting=stats["booked"] + stats["collected"] + stats["processing"])
 
     if action == "advance":
@@ -347,28 +359,38 @@ def lab_admin():
             fail("The results could not be read. Please try again.")
         publish = post("publish") == "1"
         gender = b.get("gender_code", "")
-        results, missing = {}, []
+        # Fields may stay empty (a test can be reported later); what is typed must be a real value.
+        results, filled, total = {}, 0, 0
         for item in b["items"]:
             for comp in item["components"]:
                 given = raw.get(comp["code"]) or {}
+                for p in comp["parameters"]:
+                    if p["type"] != "number" or given.get(p["key"]) in (None, ""):
+                        continue
+                    v = to_float(str(given[p["key"]]).replace(",", ""))
+                    if v is None:
+                        fail(f"{comp['name']}: '{p['name']}' must be a number.")
+                    if v < 0:
+                        fail(f"{comp['name']}: '{p['name']}' cannot be negative.")
+                    if p.get("unit") == "%" and v > 100:
+                        fail(f"{comp['name']}: '{p['name']}' cannot be more than 100%.")
                 values = fill_calculated(comp["parameters"], given)
                 res = {}
                 for p in comp["parameters"]:
                     if p["type"] == "number":
                         v = values.get(p["key"])
-                        if given.get(p["key"]) not in (None, "") and v is None:
-                            fail(f"{comp['name']}: '{p['name']}' must be a number.")
                         value = "" if v is None else round(v, p.get("decimals", 1))
                     else:
                         value = str(given.get(p["key"]) or "").strip()[:500]
                         if p["type"] == "choice" and value and value not in p.get("choices", []):
                             fail(f"{comp['name']}: choose a value for '{p['name']}' from the list.")
-                    if value == "" and not p.get("calc"):
-                        missing.append(f"{comp['name']} - {p['name']}")
+                    if not p.get("calc"):
+                        total += 1
+                        filled += value != ""
                     res[p["key"]] = {"value": value, "flag": flag_for(p, value, gender)}
                 results[comp["code"]] = res
-        if publish and missing:
-            fail("Fill in every result before publishing. Missing: " + "; ".join(missing[:6]) + (" ..." if len(missing) > 6 else ""))
+        if publish and not filled:
+            fail("Enter at least one result before publishing the report.")
         reported_by = post("reported_by")[:100] or (db.admins.find_one({"email": admin_email}) or {}).get("name", "")
         changes = {"results": results, "remarks": post("remarks")[:2000], "reported_by": reported_by, "updated_at": now()}
         first_publish = publish and b["status"] != "Report Ready"

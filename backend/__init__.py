@@ -35,8 +35,8 @@ def create_app():
         from flask import request
         app.config["SESSION_COOKIE_SECURE"] = request.scheme == "https"
 
-    from .routes import admin, ai, auth, clinic, emergency, lab, store
-    for module in (auth, clinic, admin, store, ai, emergency, lab):
+    from .routes import admin, ai, auth, clinic, emergency, lab, settings, store
+    for module in (auth, clinic, admin, store, ai, emergency, lab, settings):
         app.register_blueprint(module.bp)
 
     @app.errorhandler(ApiError)
@@ -90,6 +90,8 @@ def create_app():
     with app.app_context():
         try:
             ensure_indexes()
+            from .routes.settings import ensure_roles
+            ensure_roles()
             from .routes.lab import seed_tests
             seed_tests()
             from .routes.emergency import ensure_fleet

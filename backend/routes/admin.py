@@ -13,7 +13,8 @@ from ..db import db, next_id, now, out, out_all
 from ..mail import mail_configured, retry_failed_emails, waiting_retries
 from ..orders import (cancel_order, expire_unpaid_orders, issue_delivery_otp, next_status, notify_order_status,
                       upi_enabled)
-from ..utils import (arg, background, fail, ist_day_start, ok, post, remove_upload, require_admin, save_image,
+from ..permissions import ADMIN_ACTIONS, tabs_for
+from ..utils import (arg, background, current_admin, fail, ist_day_start, ok, post, remove_upload, require_admin, require_perm, save_image,
                      slot_datetime, to_float, to_int, today_ist, valid_ymd)
 from .clinic import send_due_reminders
 
@@ -47,12 +48,12 @@ def admin_api():
         session.pop("admin_email", None)
         return ok()
 
-    admin_email = require_admin()
+    require_admin()
     if action == "me":
-        me = db.admins.find_one({"email": admin_email})
-        if not me:
-            fail("Admin login required", 401)
-        return ok(name=me.get("name"), email=me["email"])
+        a = current_admin()
+        return ok(name=a["name"], email=a["email"], role=a["role"], super=a["super"], permissions=a["perms"], tabs=tabs_for(a["perms"]))
+    if action in ADMIN_ACTIONS:
+        require_perm(ADMIN_ACTIONS[action])
 
     today = today_ist()
     date_from = date_param("from", (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=29)).strftime("%Y-%m-%d"))

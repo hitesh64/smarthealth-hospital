@@ -9,7 +9,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" rel="stylesheet">
     <link href="popups.css?v=1" rel="stylesheet">
-    <link href="features.css?v=5" rel="stylesheet">
+    <link href="features.css?v=7" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
         body { background: #f8fafc; color: #0f172a; }
@@ -84,13 +84,13 @@
 
             if (!map) {
                 map = L.map('map').setView([amb.lat ?? data.hospital.lat, amb.lng ?? data.hospital.lng], 14);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
                 setTimeout(() => map.invalidateSize(), 200);
-                hospMarker = L.marker([data.hospital.lat, data.hospital.lng], { icon: pin('hosp', 'fa-hospital') }).addTo(map).bindPopup(esc(data.hospital.name));
+                hospMarker = L.marker([data.hospital.lat, data.hospital.lng], { icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="rt-start"><i></i><span>Hospital</span></div>' }) }).addTo(map).bindPopup(esc(data.hospital.name));
             }
             if (amb.lat !== null) {
                 const p = [parseFloat(amb.lat), parseFloat(amb.lng)];
-                ambMarker ? ambMarker.setLatLng(p) : (ambMarker = L.marker(p, { icon: pin('amb', 'fa-truck-medical') }).addTo(map));
+                ambMarker ? ambMarker.setLatLng(p) : (ambMarker = L.marker(p, { icon: L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20], html: '<div class="rt-amb"><i class="fas fa-truck-medical"></i></div>' }), zIndexOffset: 900 }).addTo(map));
                 if (!map.getBounds().contains(p)) map.panTo(p); // keep the ambulance on screen as it moves
             }
 
@@ -115,12 +115,12 @@
                 </div></div>`;
             if (job.route && routeFor !== job.kind + job.id) {
                 if (routeLine) map.removeLayer(routeLine);
-                routeLine = L.polyline(job.route, { color: '#dc2626', weight: 5, opacity: .85 }).addTo(map);
+                routeLine = L.layerGroup([L.polyline(job.route, { color: '#fff', weight: 11, lineCap: 'round', lineJoin: 'round' }), L.polyline(job.route, { color: '#1a73e8', weight: 6, lineCap: 'round', lineJoin: 'round' })]).addTo(map);
                 routeFor = job.kind + job.id;
             }
             if (hasLoc) {
                 const p = [parseFloat(job.lat), parseFloat(job.lng)];
-                patMarker ? patMarker.setLatLng(p) : (patMarker = L.marker(p, { icon: pin('me', 'fa-person') }).addTo(map));
+                patMarker ? patMarker.setLatLng(p) : (patMarker = L.marker(p, { icon: L.divIcon({ className: '', iconSize: [34, 44], iconAnchor: [17, 42], html: '<div class="rt-pin"><i></i></div>' }), zIndexOffset: 600 }).addTo(map));
                 if (fittedFor !== job.kind + job.id) {
                     map.fitBounds(job.route ? L.latLngBounds(job.route) : L.latLngBounds([p, ambMarker ? ambMarker.getLatLng() : p]), { padding: [40, 40], maxZoom: 16 });
                     fittedFor = job.kind + job.id;

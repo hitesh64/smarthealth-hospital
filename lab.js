@@ -5,7 +5,7 @@
 const LB_FLOW = ['Booked', 'Sample Collected', 'Processing', 'Report Ready'];
 const LB_CART_KEY = 'smartHealthLabCart';
 const lab = { loaded: false, tests: [], categories: [], cfg: {}, cart: [], tab: 'book', cat: 'All', q: '', bookings: [],
-              mineLoaded: false, form: { collection: 'Home', date: '', slot: '' } };
+              mineLoaded: false, form: { collection: 'Home', date: '', slot: '' }, draft: {} };
 
 try { lab.cart = JSON.parse(localStorage.getItem(LB_CART_KEY)) || []; } catch (e) { lab.cart = []; }
 
@@ -59,22 +59,48 @@ function lbDraw() {
     if (!lab.loaded && lab.tab === 'book') return;
     if (lab.tab === 'my') return lbDrawMine();
     const body = document.getElementById('lab-body');
-    if (!body.querySelector('.lb-layout')) {
+    if (!body.querySelector('.lb-main')) {
+        // the catalogue uses the full width; the chosen tests wait in a bar at the bottom and the
+        // booking form opens as a popup, so nothing is pushed aside while browsing
         body.innerHTML = `
-            <div class="lb-layout">
-                <div class="lb-main">
-                    <div class="lb-tools">
-                        <label class="lb-find"><i class="fas fa-magnifying-glass"></i><input type="search" id="lbFind" placeholder="Search a test, e.g. thyroid, sugar, vitamin D" value="${shEsc(lab.q)}"></label>
-                    </div>
-                    <div class="lb-cats" id="lbCats"></div>
-                    <div class="lb-grid" id="lbGrid"></div>
+            <div class="lb-main">
+                <div class="lb-tools">
+                    <label class="lb-find"><i class="fas fa-magnifying-glass"></i><input type="search" id="lbFind" placeholder="Search a test, e.g. thyroid, sugar, vitamin D" value="${shEsc(lab.q)}"></label>
                 </div>
-                <aside class="lb-side" id="lbSide"></aside>
+                <div class="lb-cats" id="lbCats"></div>
+                <div class="lb-grid" id="lbGrid"></div>
+                <div class="lb-bar" id="lbBar" hidden></div>
             </div>`;
         document.getElementById('lbFind').addEventListener('input', e => { lab.q = e.target.value.trim().toLowerCase(); lbDrawGrid(); });
     }
     lbDrawGrid();
-    lbDrawSide();
+    lbDrawBar();
+}
+
+// The bar floats over the bottom of the page content (not over the sidebar)
+function lbPlaceBar() {
+    const bar = document.getElementById('lbBar'), main = document.querySelector('.main-content');
+    if (!bar || !main) return;
+    // the app container is zoomed: screen pixels are turned back into CSS pixels of the page
+    const scale = main.offsetWidth ? main.getBoundingClientRect().width / main.offsetWidth : 1;
+    bar.style.setProperty('--lb-left', Math.max(12, main.getBoundingClientRect().left / (scale || 1) + 20) + 'px');
+}
+window.addEventListener('resize', lbPlaceBar);
+
+// Bottom bar with what is chosen so far and the way into the booking form
+function lbDrawBar() {
+    const bar = document.getElementById('lbBar');
+    if (!bar) return;
+    const t = lbTotals();
+    bar.hidden = !t.chosen.length;
+    bar.parentElement.classList.toggle('has-bar', !bar.hidden);
+    if (!t.chosen.length) return;
+    lbPlaceBar();
+    bar.innerHTML = `
+        <span class="lb-bar-ico"><i class="fas fa-vials"></i><b>${t.chosen.length}</b></span>
+        <span class="lb-bar-text"><b>${t.chosen.length} test${t.chosen.length > 1 ? 's' : ''} selected · ${lbMoney(t.subtotal)}</b>
+            <small>${shEsc(t.chosen.map(x => x.name).join(', '))}</small></span>
+        <button type="button" class="lb-bar-btn" onclick="lbOpenForm()">Book now <i class="fas fa-arrow-right"></i></button>`;
 }
 
 function lbDrawGrid() {
@@ -127,7 +153,9 @@ function lbToggle(code) {
     lbSaveCart();
     lbTabs();
     lbDrawGrid();
-    lbDrawSide();
+    lbDrawBar();
+    if (!lab.cart.length) lbCloseForm();
+    else lbDrawForm();
 }
 
 function lbChosen() { return lab.cart.map(lbTest).filter(Boolean); }
@@ -148,83 +176,159 @@ function lbSlotOk(date, slot, home) {
     return at - Date.now() > (home ? 60 : 15) * 60000;
 }
 
-function lbDrawSide() {
-    const side = document.getElementById('lbSide');
-    if (!side) return;
-    const t = lbTotals(), f = lab.form;
-    if (!t.homeOk && f.collection === 'Home') f.collection = 'Lab';
-    const keep = {};
-    side.querySelectorAll('input, textarea, select').forEach(el => { if (el.id) keep[el.id] = el.value; });
-    const u = currentUser || {};
-    const val = (id, fallback) => shEsc(keep[id] !== undefined ? keep[id] : (fallback ?? ''));
-    if (!f.date) f.date = lbToday();
-    const slots = f.collection === 'Home' ? lab.cfg.home_slots : lab.cfg.lab_slots;
-    if (f.slot && (!slots.includes(f.slot) || !lbSlotOk(f.date, f.slot, f.collection === 'Home'))) f.slot = '';
+// ---------------------------------------------------------------- booking form (popup)
+// What the patient types is kept in lab.draft, so closing the popup to add another test loses nothing.
 
-    side.innerHTML = `
-        <div class="lb-box">
-            <h4><i class="fas fa-basket-shopping"></i>Your tests <small>${t.chosen.length}</small></h4>
-            ${t.chosen.length ? `<ul class="lb-cart">${t.chosen.map(x => `<li><span>${shEsc(x.name)}${x.is_package ? `<small>${x.includes.length} tests</small>` : ''}</span><b>${lbMoney(x.price)}</b>
-                <button type="button" onclick="lbToggle('${x.code}')" aria-label="Remove"><i class="fas fa-xmark"></i></button></li>`).join('')}</ul>`
-                : '<p class="lb-muted">Add tests from the list. Not sure which? A <b>health package</b> covers the common checks at a lower price.</p>'}
-        </div>
-        ${t.chosen.length ? `
-        <div class="lb-box">
-            <h4><i class="fas fa-truck-droplet"></i>Sample collection</h4>
+const LB_FIELDS = ['lbName', 'lbAge', 'lbPhone', 'lbAddress', 'lbRef'];
+
+function lbOpenForm() {
+    if (!lab.cart.length) return;
+    if (!currentUser) return shToast('Please log in to book lab tests.', 'error');
+    if (!document.getElementById('lbSheet')) {
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="lb-sheet" id="lbSheet" onclick="if (event.target === this) lbCloseForm()">
+                <div class="lb-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="lbSheetTitle">
+                    <div class="lb-sheet-head">
+                        <div><h3 id="lbSheetTitle">Book lab tests</h3><small id="lbSheetSub"></small></div>
+                        <button type="button" class="lb-sheet-x" onclick="lbCloseForm()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <div class="lb-sheet-body" id="lbSheetBody"></div>
+                    <div class="lb-sheet-foot" id="lbSheetFoot"></div>
+                </div>
+            </div>`);
+        const sheet = document.getElementById('lbSheet');
+        sheet.addEventListener('input', e => {
+            if (LB_FIELDS.includes(e.target.id)) lab.draft[e.target.id] = e.target.value;
+            const field = e.target.closest('.lb-field');
+            if (field) field.classList.remove('is-missing');
+        });
+        document.addEventListener('keydown', lbSheetKey);
+    }
+    lbDrawForm();
+    setTimeout(() => {
+        const first = LB_FIELDS.map(id => document.getElementById(id)).find(el => el && !el.value.trim());
+        if (first && window.innerWidth > 768) first.focus();
+    }, 80);
+}
+
+function lbSheetKey(e) { if (e.key === 'Escape' && !document.querySelector('.sh-success')) lbCloseForm(); }
+
+function lbCloseForm() {
+    const sheet = document.getElementById('lbSheet');
+    if (!sheet) return;
+    document.removeEventListener('keydown', lbSheetKey);
+    sheet.remove();
+}
+
+function lbDayLabel(ymd) {
+    if (ymd === lbToday()) return 'Today';
+    if (ymd === lbToday(1)) return 'Tomorrow';
+    return new Date(ymd + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function lbDrawForm() {
+    const bodyEl = document.getElementById('lbSheetBody');
+    if (!bodyEl) return;
+    const t = lbTotals(), f = lab.form, d = lab.draft, u = currentUser || {};
+    if (!t.homeOk && f.collection === 'Home') f.collection = 'Lab';
+    const home = f.collection === 'Home';
+    // the profile fills what has not been typed yet
+    const val = (id, fallback) => shEsc(d[id] !== undefined ? d[id] : (fallback ?? ''));
+    if (d.lbGender === undefined) d.lbGender = '';
+    const slots = home ? lab.cfg.home_slots : lab.cfg.lab_slots;
+    if (!f.date) f.date = lbToday();
+    // nothing left today: start with tomorrow
+    if (f.date === lbToday() && !slots.some(s => lbSlotOk(f.date, s, home))) f.date = lbToday(1);
+    if (f.slot && (!slots.includes(f.slot) || !lbSlotOk(f.date, f.slot, home))) f.slot = '';
+    const days = [0, 1, 2].map(n => lbToday(n));
+    const lateForFasting = t.fasting && f.slot && /(1[2-9]|0[1-9]):\d\d PM|11:\d\d AM/.test(f.slot);
+    const tat = Math.max(...t.chosen.map(x => x.tat_hours));
+    const scroll = bodyEl.scrollTop;
+
+    document.getElementById('lbSheetSub').textContent = `${t.chosen.length} test${t.chosen.length > 1 ? 's' : ''} · report in about ${lbHours(tat)} after the sample · pay at collection`;
+    bodyEl.innerHTML = `
+        <section class="lb-step">
+            <h4><span>1</span>Your tests</h4>
+            <ul class="lb-cart">${t.chosen.map(x => `<li><span>${shEsc(x.name)}<small>${x.is_package ? `${x.includes.length} tests · ` : ''}${x.fasting_hours ? `${x.fasting_hours} h fasting` : 'no fasting'}</small></span><b>${lbMoney(x.price)}</b>
+                <button type="button" onclick="lbToggle('${x.code}')" aria-label="Remove ${shEsc(x.name)}"><i class="fas fa-xmark"></i></button></li>`).join('')}</ul>
+            <button type="button" class="lb-more" onclick="lbCloseForm()"><i class="fas fa-plus"></i>Add more tests</button>
+        </section>
+
+        <section class="lb-step">
+            <h4><span>2</span>Where should the sample be taken?</h4>
             <div class="lb-modes">
-                <button type="button" class="${f.collection === 'Home' ? 'active' : ''}" ${t.homeOk ? '' : 'disabled'} onclick="lab.form.collection='Home'; lbDrawSide()">
-                    <i class="fas fa-house-medical"></i><span><b>Home collection</b><small>${t.homeOk ? (t.subtotal > lab.cfg.free_above ? 'Free' : lbMoney(lab.cfg.home_fee) + ' (free above ' + lbMoney(lab.cfg.free_above) + ')') : 'Not for ECG / X-ray'}</small></span></button>
-                <button type="button" class="${f.collection === 'Lab' ? 'active' : ''}" onclick="lab.form.collection='Lab'; lbDrawSide()">
-                    <i class="fas fa-hospital"></i><span><b>Visit the lab</b><small>No charge · ${shEsc(lab.cfg.lab.address.split(',').slice(-3, -1).join(',') || 'at the hospital')}</small></span></button>
+                <button type="button" class="${home ? 'active' : ''}" ${t.homeOk ? '' : 'disabled'} onclick="lab.form.collection='Home'; lbDrawForm()">
+                    <i class="fas fa-house-medical"></i><span><b>At my home</b><small>${t.homeOk ? (t.subtotal > lab.cfg.free_above ? 'Free collection' : lbMoney(lab.cfg.home_fee) + ' · free above ' + lbMoney(lab.cfg.free_above)) : 'Not possible for ECG / X-ray'}</small></span></button>
+                <button type="button" class="${home ? '' : 'active'}" onclick="lab.form.collection='Lab'; lbDrawForm()">
+                    <i class="fas fa-hospital"></i><span><b>At the hospital lab</b><small>No charge · Andheri East, Mumbai</small></span></button>
             </div>
+            ${home ? `<label class="lb-field">Collection address<textarea id="lbAddress" rows="2" placeholder="Flat / house no., building, street, area, PIN">${val('lbAddress', u.address)}</textarea></label>`
+                : `<p class="lb-where"><i class="fas fa-location-dot"></i>${shEsc(lab.cfg.lab.name)}, ${shEsc(lab.cfg.lab.address)}</p>`}
+        </section>
+
+        <section class="lb-step">
+            <h4><span>3</span>Patient details <small>normal ranges on the report depend on age and gender</small></h4>
             <div class="lb-form">
-                <div class="lb-row">
-                    <label>Patient name<input id="lbName" value="${val('lbName', u.name)}" autocomplete="name"></label>
+                <label class="lb-field">Full name<input id="lbName" value="${val('lbName', u.name)}" autocomplete="name"></label>
+                <div class="lb-row--3">
+                    <label class="lb-field">Age<input id="lbAge" type="number" inputmode="numeric" min="0" max="120" value="${val('lbAge', u.age)}"></label>
+                    <div class="lb-field" id="lbGenderBox"><span>Gender</span>
+                        <div class="lb-seg">${['Male', 'Female', 'Other'].map(g => `<button type="button" class="${d.lbGender === g ? 'active' : ''}" onclick="lab.draft.lbGender='${g}'; lbDrawForm()">${g}</button>`).join('')}</div></div>
                 </div>
-                <div class="lb-row lb-row--3">
-                    <label>Age<input id="lbAge" type="number" min="0" max="120" value="${val('lbAge', u.age)}"></label>
-                    <label>Gender<select id="lbGender">${['', 'Male', 'Female', 'Other'].map(g => `<option value="${g}" ${(keep.lbGender || '') === g ? 'selected' : ''}>${g || 'Choose'}</option>`).join('')}</select></label>
-                    <label>Mobile<input id="lbPhone" type="tel" value="${val('lbPhone', u.phone)}" autocomplete="tel"></label>
-                </div>
-                ${f.collection === 'Home' ? `<label>Collection address<textarea id="lbAddress" rows="2" placeholder="Flat / house no., building, street, area, PIN">${val('lbAddress', u.address)}</textarea></label>`
-                    : `<p class="lb-where"><i class="fas fa-location-dot"></i>${shEsc(lab.cfg.lab.name)}, ${shEsc(lab.cfg.lab.address)}</p>`}
-                <label>Date<input id="lbDate" type="date" min="${lbToday()}" max="${lbToday(lab.cfg.days_ahead)}" value="${shEsc(f.date)}" onchange="lab.form.date=this.value; lbDrawSide()"></label>
-                <span class="lb-label">Time ${f.collection === 'Home' ? '(the collector reaches within this hour)' : ''}</span>
-                <div class="lb-slots">${slots.map(s => {
-                    const okSlot = lbSlotOk(f.date, s, f.collection === 'Home');
-                    return `<button type="button" class="${f.slot === s ? 'active' : ''}" ${okSlot ? '' : 'disabled'} onclick="lab.form.slot='${s}'; lbDrawSide()">${s}</button>`;
-                }).join('')}</div>
-                ${t.fasting && f.slot && /(1[2-9]|0[1-9]):\d\d PM|11:\d\d AM/.test(f.slot) ? `<p class="lb-warn"><i class="fas fa-triangle-exclamation"></i>Fasting tests are best done early in the morning. Choose a slot before 11 AM if you can.</p>` : ''}
-                <label>Referred by doctor <small>(optional)</small><input id="lbRef" value="${val('lbRef')}" placeholder="e.g. Dr. Patil"></label>
+                <label class="lb-field">Mobile number<input id="lbPhone" type="tel" inputmode="numeric" maxlength="14" value="${val('lbPhone', u.phone)}" autocomplete="tel"></label>
+                <label class="lb-field">Referred by doctor <small>(optional)</small><input id="lbRef" value="${val('lbRef')}" placeholder="e.g. Dr. Patil"></label>
             </div>
+        </section>
+
+        <section class="lb-step">
+            <h4><span>4</span>Date and time</h4>
+            <div class="lb-days">
+                ${days.map(day => `<button type="button" class="${f.date === day ? 'active' : ''}" ${lab.cfg.home_slots && !slots.some(s => lbSlotOk(day, s, home)) ? 'disabled' : ''} onclick="lab.form.date='${day}'; lbDrawForm()">${lbDayLabel(day)}</button>`).join('')}
+                <label class="${days.includes(f.date) ? '' : 'active'}"><i class="far fa-calendar"></i><input type="date" min="${lbToday()}" max="${lbToday(lab.cfg.days_ahead)}" value="${shEsc(f.date)}" onchange="if (this.value) { lab.form.date=this.value; lbDrawForm(); }" aria-label="Other date"></label>
+            </div>
+            <div class="lb-field" id="lbSlotBox"><span>${home ? 'The collector reaches within this hour' : 'Your time at the lab'} · ${shEsc(lbDayLabel(f.date))}</span>
+                <div class="lb-slots">${slots.map(s => `<button type="button" class="${f.slot === s ? 'active' : ''}" ${lbSlotOk(f.date, s, home) ? '' : 'disabled'} onclick="lab.form.slot='${s}'; lbDrawForm()">${s}</button>`).join('')}</div></div>
+            ${lateForFasting ? `<p class="lb-warn"><i class="fas fa-triangle-exclamation"></i>Your tests need ${t.fasting} hours of fasting. A slot before 11 AM is easier - you can have breakfast right after.</p>` : ''}
             ${t.fasting ? `<p class="lb-prep"><i class="fas fa-utensils"></i><span><b>Fasting needed:</b> no food for ${t.fasting}-${t.fasting + 2} hours before the sample. Water is allowed.</span></p>` : ''}
-            <div class="lb-total">
-                <div><span>Tests</span><b>${lbMoney(t.subtotal)}</b></div>
-                ${f.collection === 'Home' ? `<div><span>Home collection</span><b>${t.fee ? lbMoney(t.fee) : 'Free'}</b></div>` : ''}
-                <div class="is-sum"><span>Total · pay at collection</span><b>${lbMoney(t.total)}</b></div>
-            </div>
-            <button type="button" class="btn lb-book" id="lbBookBtn" onclick="lbBook()"><i class="fas fa-calendar-check"></i>Book ${t.chosen.length} test${t.chosen.length > 1 ? 's' : ''} · ${lbMoney(t.total)}</button>
-        </div>` : ''}`;
+        </section>`;
+    bodyEl.scrollTop = scroll;
+
+    document.getElementById('lbSheetFoot').innerHTML = `
+        <div class="lb-total">
+            <div><span>Tests</span><b>${lbMoney(t.subtotal)}</b></div>
+            ${home ? `<div><span>Home collection</span><b>${t.fee ? lbMoney(t.fee) : 'Free'}</b></div>` : ''}
+            <div class="is-sum"><span>Total · pay at collection</span><b>${lbMoney(t.total)}</b></div>
+        </div>
+        <button type="button" class="btn lb-book" id="lbBookBtn" onclick="lbBook()"><i class="fas fa-calendar-check"></i>Confirm booking · ${lbMoney(t.total)}</button>`;
 }
 
 async function lbBook() {
     if (!currentUser) return shToast('Please log in to book lab tests.', 'error');
-    const t = lbTotals(), f = lab.form, get = id => (document.getElementById(id) || {}).value || '';
-    const missing = [];
-    if (get('lbName').trim().length < 2) missing.push('patient name');
-    if (get('lbAge') === '') missing.push('age');
-    if (!get('lbGender')) missing.push('gender');
-    if (get('lbPhone').replace(/\D/g, '').length < 10) missing.push('10-digit mobile number');
-    if (f.collection === 'Home' && get('lbAddress').trim().length < 10) missing.push('collection address');
-    if (!f.slot) missing.push('time slot');
-    if (missing.length) return shToast('Please fill in: ' + missing.join(', ') + '.', 'error');
+    const t = lbTotals(), f = lab.form, d = lab.draft, get = id => ((document.getElementById(id) || {}).value || '').trim();
+    const home = f.collection === 'Home';
+    // every problem is marked on the form, and the first one is brought into view
+    const problems = [
+        ['lbAddress', home && get('lbAddress').length < 10, 'the full collection address'],
+        ['lbName', get('lbName').length < 2, "the patient's full name"],
+        ['lbAge', get('lbAge') === '' || +get('lbAge') < 0 || +get('lbAge') > 120, 'the age'],
+        ['lbGenderBox', !d.lbGender, 'the gender'],
+        ['lbPhone', !/^[6-9]\d{9}$/.test(get('lbPhone').replace(/\D/g, '').slice(-10)), 'a valid 10-digit mobile number'],
+        ['lbSlotBox', !f.slot, 'a time slot']
+    ].filter(p => p[1]);
+    document.querySelectorAll('#lbSheet .lb-field').forEach(el => el.classList.remove('is-missing'));
+    if (problems.length) {
+        problems.forEach(([id]) => { const el = document.getElementById(id); if (el) (el.closest('.lb-field') || el).classList.add('is-missing'); });
+        const first = document.getElementById(problems[0][0]);
+        if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (first.focus && first.tagName !== 'DIV') first.focus({ preventScroll: true }); }
+        return shToast('Please add ' + problems.map(p => p[2]).join(', ') + '.', 'error');
+    }
 
     const btn = document.getElementById('lbBookBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Booking…';
     const fd = new FormData();
-    Object.entries({ items: JSON.stringify(lab.cart), patient_name: get('lbName').trim(), age: get('lbAge'), gender: get('lbGender'),
-        phone: get('lbPhone'), collection_type: f.collection, address: get('lbAddress'), date: f.date, slot: f.slot, referred_by: get('lbRef') })
+    Object.entries({ items: JSON.stringify(lab.cart), patient_name: get('lbName'), age: get('lbAge'), gender: d.lbGender,
+        phone: get('lbPhone'), collection_type: f.collection, address: home ? get('lbAddress') : '', date: f.date, slot: f.slot, referred_by: get('lbRef') })
         .forEach(([k, v]) => fd.append(k, v));
     try {
         const res = await fetch('api/lab?action=book', { method: 'POST', body: fd }).then(r => r.json());
@@ -232,7 +336,9 @@ async function lbBook() {
         const tests = t.chosen.map(x => x.name), booked = { ...f };
         lab.cart = [];
         lab.form.slot = '';
+        lab.draft.lbRef = '';
         lbSaveCart();
+        lbCloseForm();
         lbBooked(res, tests, booked);
         document.querySelector('.main-content').scrollTo(0, 0);
         lab.mineLoaded = false;
@@ -241,8 +347,7 @@ async function lbBook() {
         lbLoadMine();
     } catch (e) {
         shToast(e.message === 'Failed to fetch' ? 'Server connection failed.' : e.message, 'error');
-        btn.disabled = false;
-        lbDrawSide();
+        if (document.getElementById('lbBookBtn')) lbDrawForm();
     }
 }
 

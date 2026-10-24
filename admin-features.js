@@ -24,19 +24,19 @@ let afTimer = null, afOrderTimer = null, afMailTimer = null;
 
 // Called after a successful admin login
 function startAdminFeatures() {
+    // only what the signed-in staff member's role includes is loaded and refreshed
+    const can = perm => typeof adminCan !== 'function' || adminCan(perm);
     document.getElementById('an-from').value = afDate(-29);
     document.getElementById('an-to').value = afDate(0);
-    loadSos();
-    loadMedicines();
-    loadOrders();
-    if (typeof loadLab === 'function') loadLab();
-    afApi('api/admin', 'sendReminders').catch(() => {});
     clearInterval(afTimer);
-    afTimer = setInterval(loadSos, 5000); // SOS alerts must show up without a refresh
     clearInterval(afOrderTimer);
-    afOrderTimer = setInterval(loadOrders, 20000); // new medicine orders show up on their own too
     clearInterval(afMailTimer);
-    afMailTimer = setInterval(() => retryEmails(true), 60000);
+    if (can('sos')) { loadSos(); afTimer = setInterval(loadSos, 5000); } // SOS alerts must show up without a refresh
+    if (can('medicines')) loadMedicines();
+    if (can('orders')) { loadOrders(); afOrderTimer = setInterval(loadOrders, 20000); } // new orders show up on their own
+    if (can('lab') && typeof loadLab === 'function') loadLab();
+    afApi('api/admin', 'sendReminders').catch(() => {});
+    if (can('notifications')) afMailTimer = setInterval(() => retryEmails(true), 60000);
 }
 
 // Stay logged in across a page refresh: if the server still has our admin session,
@@ -46,7 +46,7 @@ function startAdminFeatures() {
     auth.style.visibility = 'hidden'; // no login-form flash while we check
     fetch('api/admin?action=me').then(r => r.json()).then(res => {
         if (res.status !== 'success') throw new Error('not logged in');
-        enterDashboard(res.name);
+        enterDashboard(res);
     }).catch(() => {}).finally(() => { auth.style.visibility = ''; });
 })();
 
@@ -248,12 +248,12 @@ function renderSosMap(d, active) {
     if (typeof L === 'undefined' || !el.offsetParent) return; // tab not visible yet
     if (!sosMap) {
         sosMap = L.map(el).setView([d.hospital.lat, d.hospital.lng], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(sosMap);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(sosMap);
         sosLayer = L.layerGroup().addTo(sosMap);
     }
     sosLayer.clearLayers();
     const points = [];
-    L.marker([d.hospital.lat, d.hospital.lng], { icon: sosPin('hosp', 'fa-hospital') }).addTo(sosLayer).bindPopup(afEsc(d.hospital.name));
+    L.marker([d.hospital.lat, d.hospital.lng], { icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="rt-start"><i></i><span>Hospital</span></div>' }), zIndexOffset: 400 }).addTo(sosLayer).bindPopup(afEsc(d.hospital.name));
     d.fleet.forEach(f => {
         if (f.lat === null) return;
         L.marker([+f.lat, +f.lng], { icon: sosPin('amb' + (f.status === 'Offline' ? ' off' : ''), 'fa-truck-medical') }).addTo(sosLayer)
@@ -262,7 +262,11 @@ function renderSosMap(d, active) {
     });
     active.forEach(a => {
         if (a.lat === null) return;
-        L.marker([+a.lat, +a.lng], { icon: sosPin('me', 'fa-person') }).addTo(sosLayer).bindPopup(`SOS #${a.id} — ${afEsc(a.status)}`);
+        if (a.route) {
+            L.polyline(a.route, { color: '#fff', weight: 9, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(sosLayer);
+            L.polyline(a.route, { color: '#1a73e8', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(sosLayer);
+        }
+        L.marker([+a.lat, +a.lng], { icon: L.divIcon({ className: '', iconSize: [34, 44], iconAnchor: [17, 42], html: '<div class="rt-pin"><i></i></div>' }), zIndexOffset: 600 }).addTo(sosLayer).bindPopup(`SOS #${a.id} — ${afEsc(a.status)}`);
         points.push([+a.lat, +a.lng]);
     });
     // Re-frame only when the set of active alerts changes, so the admin can pan freely

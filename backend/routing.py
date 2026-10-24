@@ -9,6 +9,7 @@
   in, its position is estimated from the time since dispatch along the planned road route, and the
   page says that it is an estimate.
 """
+import re
 import threading
 import time
 from datetime import timedelta
@@ -234,6 +235,35 @@ def search_places(q):
                        "km": round(distance_km(config.HOSPITAL_LAT, config.HOSPITAL_LNG, lat, lng), 1)})
     places.sort(key=lambda x: x["km"])
     return places
+
+
+def locate_address(text, max_tries=4):
+    """Finds a typed address on the map. Full addresses often name a building the map does not
+    know ("Rc patel polytechnic shirpur dhule district"), so the leading words are dropped one by
+    one until a place is found ("shirpur dhule district"). Returns
+    {lat, lng, name, exact} - exact is False when only a shorter part matched - or None."""
+    text = re.sub(r"\s+", " ", (text or "").replace("\n", ", ")).strip(" ,")
+    if len(text) < 3:
+        return None
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    tries = [text]
+    if len(parts) > 2:
+        tries += [", ".join(parts[-3:]), ", ".join(parts[-2:])]
+    words = text.replace(",", " ").split()
+    for i in range(1, len(words) - 1):
+        tries.append(" ".join(words[i:]))
+    seen = []
+    for q in tries:
+        if q in seen or len(q) < 3:
+            continue
+        seen.append(q)
+        if len(seen) > max_tries:
+            break
+        places = search_places(q[:120])
+        if places:
+            p = places[0]
+            return {"lat": p["lat"], "lng": p["lng"], "name": p["name"], "exact": q == text}
+    return None
 
 
 def reverse_place(lat, lng):

@@ -6,7 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
-from flask import Response, jsonify, request, session
+from flask import Response, g, jsonify, request, session
 
 from . import config
 from .db import db, now
@@ -99,20 +99,66 @@ def new_token():
 
 # ---------------------------------------------------------------- login guards
 
+def current_admin():
+    """The signed-in staff member with the sections their role allows, or None.
+    Read from the database on every request, so a changed role or a switched-off account takes
+    effect at once, even for someone who is already signed in."""
+    if "admin" in g:
+        return g.admin
+    g.admin = None
+    email = session.get("admin_email")
+    if not email:
+        return None
+    from .permissions import ALL, LABELS
+    a = db.admins.find_one({"email": email})
+    if not a or a.get("active", True) is False:
+        session.pop("admin_email", None)
+        return None
+    role = db.roles.find_one({"_id": a.get("role_id")}) if a.get("role_id") else None
+    if role and role.get("builtin"):
+        perms = list(ALL)
+    elif role:
+        perms = [p for p in role.get("permissions", []) if p in LABELS]
+    else:
+        perms = []  # no role: can sign in but sees nothing until a role is given
+    g.admin = {"id": a["_id"], "name": a.get("name"), "email": a["email"], "role_id": a.get("role_id"),
+               "role": role["name"] if role else "No role", "super": bool(role and role.get("builtin")), "perms": perms}
+    return g.admin
+
+
 def is_admin():
-    return bool(session.get("admin_email"))
+    return current_admin() is not None
+
+
+def admin_can(perm):
+    a = current_admin()
+    return bool(a) and perm in a["perms"]
 
 
 def require_admin():
-    if not is_admin():
+    a = current_admin()
+    if not a:
         fail("Admin login required", 401)
-    return session["admin_email"]
+    return a["email"]
+
+
+def require_perm(perm, as_text=False):
+    """Stops the request unless the signed-in staff member's role includes this section."""
+    from .permissions import LABELS
+    a = current_admin()
+    if not a:
+        raise ApiError("Error: Admin login required. Please sign in again." if as_text else "Admin login required", 401, text=as_text)
+    if perm not in a["perms"]:
+        msg = f"Your role ({a['role']}) does not have access to {LABELS.get(perm, perm)}."
+        raise ApiError(("Error: " + msg) if as_text else msg, 403, text=as_text)
+    return a
 
 
 def require_admin_text():
-    if not is_admin():
+    a = current_admin()
+    if not a:
         raise ApiError("Error: Admin login required. Please sign in again.", 401, text=True)
-    return session["admin_email"]
+    return a["email"]
 
 
 def require_user():

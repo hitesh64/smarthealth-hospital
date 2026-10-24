@@ -8,8 +8,15 @@ const PAGE_TITLES = {
     'booking-tab': 'Appointments', 'registered-users-tab': 'Patients', 'doctor-list-tab': 'Doctors',
     'ambulance-bookings-tab': 'Ambulance Bookings', 'sos-tab': 'SOS Alerts', 'medicine-tab': 'Medicine Stock',
     'orders-tab': 'Medicine Orders', 'analytics-tab': 'Analytics', 'notifications-tab': 'Notifications',
-    'lab-tab': 'Lab Bookings', 'lab-tests-tab': 'Test Catalogue'
+    'lab-tab': 'Lab Bookings', 'lab-tests-tab': 'Test Catalogue', 'settings-tab': 'Settings'
 };
+
+// Who is signed in and what their role may open. The server checks the same permissions on every
+// request; hiding the menu items here only keeps the screen tidy.
+let adminInfo = { name: '', role: '', super: false, permissions: [], tabs: [] };
+function adminCan(perm) { return adminInfo.permissions.includes(perm); }
+function adminTabAllowed(tab) { return adminInfo.tabs.includes(tab); }
+
 
 document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -80,6 +87,10 @@ document.querySelector('.sidebar-nav').addEventListener('click', e => {
 });
 
 function switchTab(tabId) {
+    if (!adminTabAllowed(tabId)) {
+        shToast(`Your role (${adminInfo.role}) cannot open ${PAGE_TITLES[tabId] || 'this section'}.`, 'error');
+        return;
+    }
     // "Add Doctor" is a popup over the Doctors page, not a page of its own
     if (tabId === 'doctor-tab') {
         switchTab('doctor-list-tab');
@@ -100,6 +111,7 @@ function switchTab(tabId) {
     else if (tabId === 'ambulance-bookings-tab') loadAmbulanceBookings();
     else if (tabId === 'lab-tab') loadLab();
     else if (tabId === 'lab-tests-tab') loadLabTests();
+    else if (tabId === 'settings-tab') loadSettings();
     else if (typeof onFeatureTab === 'function') onFeatureTab(tabId);
 }
 
@@ -114,17 +126,58 @@ function validateInput(id, errorId, validationType) {
     return isValid;
 }
 
-// Shows the console after a successful sign-in (or a still-valid session on page load)
-function enterDashboard(name) {
-    document.getElementById('admin-name-display').innerText = name;
-    document.getElementById('admin-avatar').textContent = initials(name);
+// Shows the console after a successful sign-in (or a still-valid session on page load), with only
+// the sections the staff member's role includes.
+function enterDashboard(info) {
+    adminInfo = Object.assign({ name: 'Admin', role: '', super: false, permissions: [], tabs: [] }, info || {});
+    document.getElementById('admin-name-display').innerText = adminInfo.name;
+    document.getElementById('admin-role-display').innerText = adminInfo.role || 'Staff';
+    document.getElementById('admin-avatar').textContent = initials(adminInfo.name);
+    applyRoleAccess();
     document.getElementById('auth-view').style.display = 'none';
     document.getElementById('dashboard-view').style.display = 'flex';
-    loadBookings();
-    loadRegisteredUsers();
-    loadAddedDoctors();
-    loadAmbulanceBookings();
+    if (adminCan('appointments')) loadBookings();
+    if (adminCan('patients')) loadRegisteredUsers();
+    if (adminCan('doctors')) loadAddedDoctors();
+    if (adminCan('ambulance')) loadAmbulanceBookings();
     startAdminFeatures();
+    const first = [...document.querySelectorAll('.nav-links li[data-tab]')].find(li => !li.hidden && li.dataset.tab !== 'doctor-tab');
+    if (first) switchTab(first.dataset.tab);
+    else showNoAccess();
+}
+
+// Menu items, menu groups and dashboard cards of sections the role does not include are hidden
+function applyRoleAccess() {
+    document.querySelectorAll('.nav-links li[data-tab]').forEach(li => { li.hidden = !adminTabAllowed(li.dataset.tab); });
+    document.querySelectorAll('.sidebar-nav .nav-group').forEach(group => {
+        const list = group.nextElementSibling;
+        group.hidden = !list || ![...list.querySelectorAll('li')].some(li => !li.hidden);
+        if (list) list.hidden = group.hidden;
+    });
+    const kpi = { 'kpi-bookings': 'appointments', 'kpi-users': 'patients', 'kpi-doctors': 'doctors', 'kpi-ambulance': 'ambulance' };
+    Object.entries(kpi).forEach(([id, perm]) => {
+        const card = document.getElementById(id);
+        if (card) card.closest('.kpi-card').hidden = !adminCan(perm);
+    });
+    document.getElementById('admin-users-btn').hidden = !adminCan('settings');
+    const note = document.getElementById('no-access-note');
+    if (note) note.remove();
+}
+
+function showNoAccess() {
+    document.querySelectorAll('.content-section').forEach(sec => sec.classList.remove('active'));
+    document.getElementById('page-crumb').textContent = 'No access';
+    document.querySelector('.page-wrap').insertAdjacentHTML('afterbegin', `<section class="content-section active" id="no-access-note">
+        <div class="card"><div class="card-body" style="text-align:center; padding: 48px 20px;">
+            <i class="fas fa-lock" style="font-size: 2rem; color: var(--ink-mute);"></i>
+            <h2 style="margin: 14px 0 6px;">Your role has no sections yet</h2>
+            <p>Signed in as ${esc(adminInfo.name)} (${esc(adminInfo.role)}). Ask the Super Admin to give your role some sections in Settings.</p>
+        </div></div></section>`);
+}
+
+// The shield button in the top bar opens the staff list
+function openSettingsUsers() {
+    if (adminCan('settings')) switchTab('settings-tab');
 }
 
 // New administrators are added from inside the console, by an administrator who is signed in
@@ -192,7 +245,7 @@ function handleLogin(event) {
             let res = null;
             try { res = JSON.parse(data); } catch (e) { /* plain-text reply: wrong email / password */ }
             if (res && res.status === "success") {
-                enterDashboard(res.name);
+                enterDashboard(res);
             } else {
                 errorDiv.innerText = (res && res.message) || data.replace(/<[^>]*>/g, ' ').trim() || 'Sign-in failed.';
                 errorDiv.style.display = 'block';
@@ -397,18 +450,22 @@ function renderAmbMap() {
     if (typeof L === 'undefined' || !el || !el.offsetParent || !ambHospital) return;
     if (!ambMap) {
         ambMap = L.map(el).setView([ambHospital.lat, ambHospital.lng], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(ambMap);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(ambMap);
         ambLayer = L.layerGroup().addTo(ambMap);
         setTimeout(() => ambMap.invalidateSize(), 200);
     }
     ambLayer.clearLayers();
     const pin = (kind, icon) => L.divIcon({ className: '', html: `<div class="map-pin ${kind}"><i class="fas ${icon}"></i></div>`, iconSize: [30, 30], iconAnchor: [15, 15] });
     const points = [[ambHospital.lat, ambHospital.lng]];
-    L.marker(points[0], { icon: pin('hosp', 'fa-hospital') }).addTo(ambLayer).bindPopup(`<b>${esc(ambHospital.name)}</b><br>${esc(ambHospital.address)}`);
+    L.marker(points[0], { icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="rt-start"><i></i><span>Hospital</span></div>' }), zIndexOffset: 400 }).addTo(ambLayer).bindPopup(`<b>${esc(ambHospital.name)}</b><br>${esc(ambHospital.address)}`);
     const active = ambData.filter(a => ['Pending', 'Dispatched', 'Arrived'].includes(a.status) && a.pickup_lat !== null);
     active.forEach(a => {
-        if (a.route) L.polyline(a.route, { color: a.status === 'Pending' ? '#b3261e' : '#17539c', weight: 4, opacity: .8, dashArray: a.status === 'Pending' ? '8 8' : null }).addTo(ambLayer);
-        L.marker([a.pickup_lat, a.pickup_lng], { icon: pin('me', 'fa-person') }).addTo(ambLayer)
+        if (a.route) {
+            // waiting requests: dashed blue (planned); on the way: solid blue with a white edge
+            if (a.status !== 'Pending') L.polyline(a.route, { color: '#fff', weight: 9, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(ambLayer);
+            L.polyline(a.route, { color: '#1a73e8', weight: a.status === 'Pending' ? 4 : 5, opacity: a.status === 'Pending' ? .75 : 1, lineCap: 'round', lineJoin: 'round', dashArray: a.status === 'Pending' ? '2 9' : null }).addTo(ambLayer);
+        }
+        L.marker([a.pickup_lat, a.pickup_lng], { icon: L.divIcon({ className: '', iconSize: [34, 44], iconAnchor: [17, 42], html: '<div class="rt-pin"><i></i></div>' }), zIndexOffset: 600 }).addTo(ambLayer)
             .bindPopup(`<b>#${a.id} ${esc(a.patient_name)}</b><br>${esc(a.emergency_type)}<br>${esc(AMB_LABEL[a.status])}`);
         points.push([a.pickup_lat, a.pickup_lng]);
     });
@@ -417,7 +474,7 @@ function renderAmbMap() {
         L.marker([+f.lat, +f.lng], { icon: pin('amb' + (f.status === 'Offline' ? ' off' : ''), 'fa-truck-medical'), zIndexOffset: 500 }).addTo(ambLayer)
             .bindPopup(`${esc(f.vehicle_no)} — ${esc(f.status)}${f.live ? ' (live GPS)' : ''}`);
     });
-    document.getElementById('amb-map-note').innerHTML = `${active.length} open request${active.length === 1 ? '' : 's'} on the map &middot; dashed = waiting, blue = ambulance on the way`;
+    document.getElementById('amb-map-note').innerHTML = `${active.length} open request${active.length === 1 ? '' : 's'} on the map &middot; dotted blue = waiting for dispatch, solid blue = ambulance on the way`;
     const key = active.map(a => a.id + a.status).join(',');
     if (key !== ambFitKey) {
         if (points.length > 1) ambMap.fitBounds(points, { padding: [40, 40], maxZoom: 15 });

@@ -71,6 +71,7 @@ def ensure_indexes():
     db.users.create_index("email", unique=True)
     db.users.create_index("qr_token", unique=True, partialFilterExpression={"qr_token": {"$type": "string"}})
     db.admins.create_index("email", unique=True)
+    db.roles.create_index("name_key", unique=True)
     db.doctors.create_index("email", unique=True, partialFilterExpression={"email": {"$type": "string"}})
     db.bookings.create_index([("doctor_id", ASCENDING), ("appointment_date", ASCENDING)])
     db.bookings.create_index("user_id")

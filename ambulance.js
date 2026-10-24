@@ -11,6 +11,7 @@ const AM_TYPES = [
     { value: 'General Emergency', label: 'Other emergency', icon: 'fa-kit-medical' }
 ];
 const AM_FIELDS = ['ambName', 'ambPhone', 'ambAddress'];
+// OpenStreetMap, toned down by the .rt-tiles style so the blue route stands out
 const AM_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 // shown until the server has told us where the hospital is
 const AM_DEFAULT_HOSPITAL = { name: 'SmartHealth Hospital', lat: 19.11499, lng: 72.86817, address: 'Andheri East, Mumbai' };
@@ -20,7 +21,7 @@ const am = { map: null, hospital: null, hospMarker: null, pin: null, pinMarker: 
 // ---------------------------------------------------------------- shared map helpers (also used by the SOS tracker)
 
 function amTiles(map) {
-    L.tileLayer(AM_TILES, { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    L.tileLayer(AM_TILES, { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 }
 
 // Length in km between two [lat, lng] points
@@ -50,13 +51,40 @@ function amSplitRoute(coords, fraction) {
 function amDrawRoute(map, layers, coords, fraction) {
     const [done, left] = amSplitRoute(coords, fraction || 0);
     if (!layers.left) {
-        layers.done = L.polyline([], { color: '#94a3b8', weight: 6, opacity: .8, lineCap: 'round' }).addTo(map);
-        layers.casing = L.polyline([], { color: '#fff', weight: 9, opacity: .9, lineCap: 'round' }).addTo(map);
-        layers.left = L.polyline([], { color: '#dc2626', weight: 5, opacity: .95, lineCap: 'round' }).addTo(map);
+        layers.done = L.polyline([], { color: '#9aa5b4', weight: 6, opacity: .9, lineCap: 'round', lineJoin: 'round', dashArray: '1 10' }).addTo(map);
+        layers.casing = L.polyline([], { color: '#ffffff', weight: 11, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        layers.left = L.polyline([], { color: '#1a73e8', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
     }
     layers.done.setLatLngs(done);
     layers.casing.setLatLngs(left);
     layers.left.setLatLngs(left);
+}
+
+// Start of the route: a blue dot with a white ring and a small label (the hospital)
+function amStartIcon(label) {
+    return L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+        html: `<div class="rt-start"><i></i>${label ? `<span>${shEsc(label)}</span>` : ''}</div>` });
+}
+
+// End of the route: a blue map pin (the pickup point)
+function amEndIcon() {
+    return L.divIcon({ className: '', iconSize: [34, 44], iconAnchor: [17, 42], html: '<div class="rt-pin"><i></i></div>' });
+}
+
+function amAmbIcon(live) {
+    return L.divIcon({ className: '', iconSize: [40, 40], iconAnchor: [20, 20],
+        html: `<div class="rt-amb ${live ? 'is-live' : ''}"><i class="fas fa-truck-medical"></i></div>` });
+}
+
+// White label on the map with the route length and time, like a navigation app
+function amChip(map, holder, html) {
+    if (!holder.chip) {
+        const Chip = L.Control.extend({ onAdd: () => { const d = L.DomUtil.create('div', 'rt-chip'); L.DomEvent.disableClickPropagation(d); return d; } });
+        holder.chip = new Chip({ position: 'topleft' }).addTo(map);
+    }
+    const el = holder.chip.getContainer();
+    el.innerHTML = html;
+    el.style.display = html ? '' : 'none';
 }
 
 // Moves a marker smoothly to its new place instead of jumping
@@ -111,7 +139,7 @@ function ambInitMap() {
     const h = am.hospital || AM_DEFAULT_HOSPITAL;
     am.map = L.map('amMap', { zoomControl: true, scrollWheelZoom: false }).setView([h.lat, h.lng], 12);
     amTiles(am.map);
-    am.hospMarker = L.marker([h.lat, h.lng], { icon: shPin('hosp', 'fa-hospital'), zIndexOffset: 500 }).addTo(am.map)
+    am.hospMarker = L.marker([h.lat, h.lng], { icon: amStartIcon('Hospital'), zIndexOffset: 500 }).addTo(am.map)
         .bindPopup(`<b>${shEsc(h.name)}</b><br>${shEsc(h.address || '')}`);
     am.map.on('click', e => ambSetPin(e.latlng.lat, e.latlng.lng, 'map'));
     am.map.on('focus', () => am.map.scrollWheelZoom.enable());
@@ -130,7 +158,7 @@ function ambInitMap() {
 function ambSetPin(lat, lng, source, label) {
     am.pin = { lat, lng, source };
     if (!am.pinMarker) {
-        am.pinMarker = L.marker([lat, lng], { icon: shPin('me', 'fa-location-dot'), draggable: true, zIndexOffset: 1000 }).addTo(am.map);
+        am.pinMarker = L.marker([lat, lng], { icon: amEndIcon(), draggable: true, zIndexOffset: 1000 }).addTo(am.map);
         am.pinMarker.on('dragend', () => {
             const p = am.pinMarker.getLatLng();
             ambSetPin(p.lat, p.lng, 'map');
@@ -138,7 +166,7 @@ function ambSetPin(lat, lng, source, label) {
     } else {
         am.pinMarker.setLatLng([lat, lng]);
     }
-    document.getElementById('amMapHint').innerHTML = '<i class="fas fa-circle-check"></i>Pickup point set. Drag the red pin if it is not exactly right.';
+    document.getElementById('amMapHint').innerHTML = '<i class="fas fa-circle-check"></i>Pickup point set. Drag the blue pin if it is not exactly right.';
     document.getElementById('amMapHint').classList.add('is-set');
     ambPreviewRoute();
     ambFillAddress(lat, lng, label);
@@ -171,6 +199,7 @@ function ambPreviewRoute() {
         amDrawRoute(am.map, am.line, d.route, 0);
         am.map.fitBounds(L.latLngBounds(d.route).pad(0.15), { maxZoom: 16 });
         const s = d.summary;
+        amChip(am.map, am, `<i class="fas fa-route"></i><b>${s.km} km</b><span>${amMinutes(s.minutes)}</span>`);
         const far = !d.in_service_area;
         box.className = 'am-route' + (far ? ' is-far' : '');
         box.innerHTML = `
@@ -245,8 +274,23 @@ async function ambSubmit() {
         return shToast('Please fill in the patient name, phone number and pickup address.', 'error');
     }
     if (!currentUser) return shToast('Please log in to book an ambulance, or press SOS.', 'error');
-    if (!am.pin && !await shConfirm('No pickup point is set on the map. We will try to find the address you typed - the route may be less exact. Book anyway?',
-        { yes: 'Book anyway', no: 'Set it on the map' })) return;
+    if (!am.pin) {
+        // no pin yet: put the typed address on the map and let the patient check it before booking
+        const btn = document.getElementById('amSubmit');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Finding your address on the map…';
+        const hit = await amGet('api/geo/locate?q=' + encodeURIComponent(document.getElementById('ambAddress').value.trim())).catch(() => ({}));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-truck-medical"></i> Confirm Ambulance Booking';
+        if (hit.found) {
+            ambSetPin(hit.lat, hit.lng, hit.exact ? 'address' : 'address-approx');
+            document.getElementById('amMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return shToast(hit.exact ? 'Your address is now on the map. Check the pin, then press Confirm again.'
+                : `We could only find "${hit.name}". Drag the pin to the exact place, then press Confirm again.`, 'info');
+        }
+        if (!await shConfirm('We could not find this address on the map. Book anyway? The hospital will call you to confirm the place. (Or tap the map / use your location to set the pickup point.)',
+            { yes: 'Book anyway', no: 'Set it on the map' })) return;
+    }
 
     const btn = document.getElementById('amSubmit');
     btn.disabled = true;
@@ -350,20 +394,31 @@ function ambTrackRender(t, d) {
             t.map = L.map('amtMap', { zoomControl: false }).setView([h.lat, h.lng], 13);
             amTiles(t.map);
             L.control.zoom({ position: 'bottomright' }).addTo(t.map);
-            L.marker([h.lat, h.lng], { icon: shPin('hosp', 'fa-hospital') }).addTo(t.map).bindPopup(`<b>${shEsc(h.name)}</b><br>${shEsc(h.address)}`);
+            L.marker([h.lat, h.lng], { icon: amStartIcon('Hospital'), zIndexOffset: 500 }).addTo(t.map).bindPopup(`<b>${shEsc(h.name)}</b><br>${shEsc(h.address)}`);
             setTimeout(() => t.map && t.map.invalidateSize(), 150);
         }
         if (r.pickup_lat !== null && !t.pickup) {
-            t.pickup = L.marker([r.pickup_lat, r.pickup_lng], { icon: shPin('me', 'fa-location-dot') }).addTo(t.map).bindPopup('Pickup point');
+            t.pickup = L.marker([r.pickup_lat, r.pickup_lng], { icon: amEndIcon(), zIndexOffset: 600 }).addTo(t.map)
+                .bindPopup(`<b>Pickup point</b><br>${shEsc(r.pin_source === 'address-approx' ? 'Approximate - found from the address: ' + (r.pickup_place || '') : r.address)}`);
         }
         if (d.route) amDrawRoute(t.map, t.layers, d.route, eta ? eta.fraction : (state === 'Arrived' || state === 'Completed' ? 1 : 0));
         if (amb && amb.lat !== null && ['Dispatched', 'Arrived'].includes(state)) {
             const p = [+amb.lat, +amb.lng];
-            if (!t.amb) t.amb = L.marker(p, { icon: shPin('amb', 'fa-truck-medical'), zIndexOffset: 900 }).addTo(t.map).bindPopup(shEsc(amb.vehicle_no));
+            if (!t.amb) t.amb = L.marker(p, { icon: amAmbIcon(amb.live), zIndexOffset: 900 }).addTo(t.map).bindPopup(shEsc(amb.vehicle_no));
             else amGlide(t.amb, p, 1200);
         } else if (t.amb) {
             t.map.removeLayer(t.amb);
             t.amb = null;
+        }
+        // distance label, or a clear note when the pickup point is not on the map
+        const sm = d.route_summary;
+        if (r.pickup_lat === null) {
+            amChip(t.map, t, '<i class="fas fa-location-crosshairs"></i><span>Pickup point not found on the map - the hospital will call you to confirm the address</span>');
+        } else if (sm) {
+            const left = eta && state === 'Dispatched';
+            amChip(t.map, t, `<i class="fas fa-route"></i><b>${left ? eta.km_left : sm.km} km</b><span>${left ? (eta.minutes_left > 0 ? amMinutes(eta.minutes_left) + ' left' : 'arriving') : amMinutes(sm.minutes)}</span>`
+                + (d.in_service_area === false ? `<em>${d.straight_km} km from hospital - outside the Mumbai service area</em>` : '')
+                + (r.pin_source === 'address-approx' ? '<em>Pickup point is approximate (found from the address)</em>' : ''));
         }
         if (!t.fitted && d.route) {
             t.map.fitBounds(L.latLngBounds(d.route).pad(0.12), { maxZoom: 16 });

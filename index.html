@@ -21,7 +21,7 @@
         <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     </noscript>
     <link href="popups.css?v=1" rel="stylesheet">
-    <link href="features.css?v=10" rel="stylesheet">
+    <link href="features.css?v=12" rel="stylesheet">
     <link href="store.css?v=5" rel="stylesheet">
 
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -458,7 +458,7 @@
     <link href="profile.css?v=3" rel="stylesheet">
     <link href="blog.css?v=1" rel="stylesheet">
     <link href="ambulance.css?v=4" rel="stylesheet">
-    <link href="lab.css?v=3" rel="stylesheet">
+    <link href="lab.css?v=5" rel="stylesheet">
 </head>
 <body>
 
@@ -962,7 +962,7 @@
                             </div>
                         </div>
                         <div class="am-map" id="amMap" aria-label="Map: tap to set the pickup point"></div>
-                        <p class="am-map-hint" id="amMapHint"><i class="fas fa-hand-pointer"></i>Tap the map or drag the red pin to the exact pickup point. The green pin is our hospital in Mumbai.</p>
+                        <p class="am-map-hint" id="amMapHint"><i class="fas fa-hand-pointer"></i>Tap the map or drag the blue pin to the exact pickup point. The blue dot is our hospital in Mumbai.</p>
                         <div class="am-route" id="amRoute" hidden></div>
                         <div class="form-group">
                             <label for="ambAddress">Pickup Address (house / flat no., landmark)</label>
@@ -1531,6 +1531,7 @@ shToast("Server Error", "error");
         const collapsed = !document.getElementById('sidebar').classList.contains('rail');
         applyRailState(collapsed);
         localStorage.setItem('smartHealthRailCollapsed', collapsed ? '1' : '0');
+        if (typeof lbPlaceBar === 'function') setTimeout(lbPlaceBar, 350); // the lab cart bar follows the content edge
     }
 
     applyRailState(localStorage.getItem('smartHealthRailCollapsed') === '1');
@@ -1719,16 +1720,16 @@ function confirmBooking() {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="popups.js?v=1"></script>
-<script src="features.js?v=8"></script>
+<script src="features.js?v=10"></script>
 <script src="store.js?v=9"></script>
 <script src="search.js?v=4"></script>
 <script src="dashboard.js?v=10"></script>
 <script src="appointments.js?v=2"></script>
 <script src="profile.js?v=1"></script>
 <script src="blog.js?v=1"></script>
-<script src="ambulance.js?v=2"></script>
-<script src="lab-report.js?v=1"></script>
-<script src="lab.js?v=3"></script>
+<script src="ambulance.js?v=5"></script>
+<script src="lab-report.js?v=2"></script>
+<script src="lab.js?v=6"></script>
 
 </body>
 </html>
