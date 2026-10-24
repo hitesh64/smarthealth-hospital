@@ -61,8 +61,9 @@ py -3.12 scripts/send_reminders.py
 
 ## Laboratory
 
-* The lab enters its own tests and packages (price, sample, fasting, parameters with male / female
-  reference ranges) in Admin > Test Catalogue; nothing is added automatically.
+* 18 standard tests and 4 health packages with common adult reference ranges (male / female where
+  they differ). Check them against your own analysers in Admin > Test Catalogue, where tests can also
+  be added, switched off or deleted (a deleted standard test is not added back).
 * Patients book with home sample collection (₹100, free above ₹999) or a lab visit, choose a slot and
   get fasting / preparation advice.
 * Admin flow: Booked → Sample Collected → Processing → Report Ready. Calculated values (MCV, MCH,

@@ -31,13 +31,13 @@ def safe_uri():
 
 
 def setup_database():
-    """Indexes and the starting data (roles, admin, ambulances). Runs at start-up and, if the
+    """Indexes and the starting data (roles, admin, lab tests, ambulances). Runs at start-up and, if the
     database was not reachable then, again on a later request, so the site heals itself once
     MONGO_URI is right. Safe when several server workers run it at the same time."""
     from .routes.emergency import ensure_fleet
+    from .routes.lab import seed_tests
     from .routes.settings import ensure_default_admin, ensure_roles
-    # lab tests are not added here: the lab enters its own in Admin > Test Catalogue
-    for step in (ensure_indexes, ensure_roles, ensure_default_admin, ensure_fleet):
+    for step in (ensure_indexes, ensure_roles, ensure_default_admin, seed_tests, ensure_fleet):
         try:
             step()
         except DuplicateKeyError:
