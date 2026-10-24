@@ -120,3 +120,24 @@ button.ord-stat:hover { border-color: #b9c6d8; }
 .ord-summary b { color: var(--ink-strong); font-weight: 600; }
 @media (max-width: 1100px) { .ord-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 @media (max-width: 768px) { .ord-stat { padding: 12px; } .ord-stat .v { font-size: 1.3rem; } }
+
+/* ---------- ambulance bookings map ---------- */
+#amb-admin-map { height: 420px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-tertiary); z-index: 0; }
+@media (max-width: 768px) { #amb-admin-map { height: 300px; } }
+
+/* ---------- laboratory ---------- */
+.lab-modal { max-width: 980px !important; }
+.lab-res { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px 6px; }
+.lab-res-test h4 { margin-bottom: 8px; font-size: 1rem; color: var(--ink-strong); }
+.lab-res-test h4 small { font-weight: 400; color: var(--ink-mute); }
+.lab-res-test table, .lab-param-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.lab-res-test th, .lab-param-table th { text-align: left; padding: 6px 8px; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); background: var(--bg-tertiary); }
+.lab-res-test td, .lab-param-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.lab-res-test input, .lab-res-test select, .lab-res-test textarea, .lab-param-table input { width: 100%; min-width: 90px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font: inherit; }
+.lab-res-test tr.is-flag input, .lab-res-test tr.is-flag select { border-color: var(--red); background: var(--red-light); font-weight: 600; }
+.lab-ref { font-size: .8rem; color: var(--ink-soft); max-width: 260px; }
+.lab-flag { width: 92px; white-space: nowrap; }
+.lab-ok { color: var(--green); }
+.lab-calc { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px; font-size: .7rem; color: var(--brand); background: var(--brand-light); }
+.lab-res-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+tr.is-off td { opacity: .55; }

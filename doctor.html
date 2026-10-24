@@ -191,6 +191,13 @@
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; transition: none !important; }
         }
+            .lab-rep { border: 1px solid var(--line, #e2e8f0); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+        .lab-rep summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .lab-sec { margin-top: 10px; }
+        .lab-sec table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+        .lab-sec td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; }
+        .lab-sec tr.flag td:first-child, .lab-sec tr.flag b { color: #b91c1c; }
+        .lab-f { font-size: 11px; font-weight: 700; color: #b91c1c; }
     </style>
 </head>
 <body>
@@ -312,7 +319,7 @@
             });
         }
         function api(action, params, postData) {
-            let url = 'doctorApi.php?action=' + action;
+            let url = 'api/doctor?action=' + action;
             Object.keys(params || {}).forEach(k => url += '&' + k + '=' + encodeURIComponent(params[k]));
             const opts = {};
             if (postData) {
@@ -489,6 +496,19 @@
                                 </div>`).join('') : '<p class="muted">No previous prescriptions.</p>'}
                         </div>
                         <div class="panel">
+                            <h3><i class="fas fa-flask-vial"></i> Lab reports (${(rec.lab_reports || []).length})</h3>
+                            ${(rec.lab_reports || []).length ? rec.lab_reports.map(l => `
+                                <details class="lab-rep">
+                                    <summary><b>${esc(l.tests.join(', '))}</b> <span class="muted">· ${esc((l.report_at || '').slice(0, 10))} · ${esc(l.booking_no)}</span>
+                                        ${l.abnormal ? `<span class="badge Rejected">${l.abnormal} flagged</span>` : '<span class="badge Completed">All normal</span>'}</summary>
+                                    ${l.sections.map(sec => `<div class="lab-sec"><b>${esc(sec.name)}</b>
+                                        <table><tbody>${sec.rows.map(r => `<tr class="${r.flag ? 'flag' : ''}"><td>${esc(r.name)}</td>
+                                            <td><b>${esc(r.value === '' ? '—' : r.value)}</b> ${esc(r.unit)} ${r.flag ? `<span class="lab-f">${{ H: '▲ High', L: '▼ Low', A: 'Abnormal' }[r.flag]}</span>` : ''}</td>
+                                            <td class="muted">${esc(r.ref)}</td></tr>`).join('')}</tbody></table></div>`).join('')}
+                                    ${l.remarks ? `<p class="muted">Remarks: ${esc(l.remarks)}</p>` : ''}
+                                </details>`).join('') : '<p class="muted">No lab reports yet.</p>'}
+                        </div>
+                        <div class="panel">
                             <h3>Visit history (${rec.visits.length})</h3>
                             <div class="table-wrap"><table>
                                 <thead><tr><th>Date</th><th>Doctor</th><th>Department</th><th>Status</th></tr></thead>
@@ -570,7 +590,7 @@
         }
 
         // Already logged in (session cookie)? Go straight to the dashboard.
-        fetch('doctorApi.php?action=me').then(r => r.ok ? startApp() : null);
+        fetch('api/doctor?action=me').then(r => r.ok ? startApp() : null);
     </script>
 </body>
 </html>

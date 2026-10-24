@@ -60,7 +60,7 @@ function stSyncCart() {
 function loadStore() {
     const box = document.getElementById('store-body');
     if (!store.products.length) box.innerHTML = '<div class="st-grid">' + '<div class="st-skel"></div>'.repeat(4) + '</div>';
-    return fetch('storeApi.php?action=products').then(r => r.json()).then(d => {
+    return fetch('api/store?action=products').then(r => r.json()).then(d => {
         if (d.status !== 'success') throw new Error(d.message);
         store.products = d.products;
         store.fee = +d.delivery_fee;
@@ -422,7 +422,7 @@ function stPlaceOrder() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Placing order…';
 
-    shPost('storeApi.php?action=placeOrder', {
+    shPost('api/store?action=placeOrder', {
         name: f.name, phone, delivery_type: f.delivery_type, address: f.address, city: f.city, pincode: f.pincode.trim(), notes: f.notes,
         payment: stPayMethod(),
         items: JSON.stringify(Object.keys(store.cart).map(id => ({ id: +id, qty: store.cart[id] })))
@@ -548,7 +548,7 @@ function stSubmitUtr(id) {
     if (!/^\d{12}$/.test(utr)) return shToast('Please enter the 12-digit UTR from your UPI app.', 'error');
     const btn = document.getElementById('stPaySubmit');
     btn.disabled = true;
-    shPost('storeApi.php?action=submitPayment', { id, utr }).then(res => {
+    shPost('api/store?action=submitPayment', { id, utr }).then(res => {
         if (res.status !== 'success') {
             btn.disabled = false;
             return shToast(res.message || 'Could not record the payment.', 'error');
@@ -595,7 +595,7 @@ const ST_STATUS_TEXT = {
 };
 
 function stLoadOrders(silent) {
-    return fetch('storeApi.php?action=myOrders').then(r => r.json()).then(d => {
+    return fetch('api/store?action=myOrders').then(r => r.json()).then(d => {
         if (store.tab !== 'orders') return;
         if (d.status !== 'success') return stNeedLogin();
         store.orders = d.orders;
@@ -646,12 +646,12 @@ function stRenderOrders() {
 async function stCancelOrder(id) {
     const o = (store.orders || []).find(x => x.id == id);
     if (!o || !await shConfirm(`Cancel order ${o.order_no}?`, { yes: 'Yes, cancel order', no: 'Keep order', danger: true })) return;
-    shPost('storeApi.php?action=cancelOrder', { id }).then(res => {
+    shPost('api/store?action=cancelOrder', { id }).then(res => {
         if (res.status !== 'success') shToast(res.message || 'Could not cancel the order.', 'error');
         else shToast('Order cancelled.', 'success');
         stLoadOrders();
         // the cancelled medicines are back in stock
-        fetch('storeApi.php?action=products').then(r => r.json()).then(d => { if (d.status === 'success') store.products = d.products; }).catch(() => {});
+        fetch('api/store?action=products').then(r => r.json()).then(d => { if (d.status === 'success') store.products = d.products; }).catch(() => {});
     });
 }
 

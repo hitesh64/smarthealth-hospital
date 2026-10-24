@@ -97,7 +97,7 @@ function sosSendNow() {
 
     const send = (pos) => {
         const user = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : {};
-        shPost('sosApi.php?action=create', {
+        shPost('api/sos?action=create', {
             lat: pos ? pos.coords.latitude : '', lng: pos ? pos.coords.longitude : '',
             accuracy: pos ? Math.round(pos.coords.accuracy) : '',
             name: user.name || '', phone: user.phone || ''
@@ -155,7 +155,7 @@ function sosStartTracking() {
             sos.bestAcc = Math.min(sos.bestAcc || Infinity, pos.coords.accuracy);
             sos.lastSent = Date.now();
             sos.hasLocation = true;
-            shPost('sosApi.php?action=updateLocation', {
+            shPost('api/sos?action=updateLocation', {
                 token: sos.token, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: Math.round(pos.coords.accuracy)
             }).catch(() => {});
         }, () => {}, { enableHighAccuracy: true, maximumAge: 5000 });
@@ -165,7 +165,7 @@ function sosStartTracking() {
 function sosStopTracking() {
     clearInterval(sos.poll);
     if (sos.watch !== null) navigator.geolocation.clearWatch(sos.watch);
-    Object.assign(sos, { token: null, poll: null, watch: null, map: null, meMarker: null, ambMarker: null, fitted: false, data: null });
+    Object.assign(sos, { token: null, poll: null, watch: null, map: null, meMarker: null, ambMarker: null, routeLayers: null, fitted: false, data: null });
     localStorage.removeItem(SOS_KEY);
     localStorage.removeItem(SOS_KEY + 'Manual');
     sos.bestAcc = null;
@@ -174,7 +174,7 @@ function sosStopTracking() {
 }
 
 function sosShowTracking() {
-    sos.map = null; sos.meMarker = null; sos.ambMarker = null; sos.fitted = false; sos.centred = false;
+    sos.map = null; sos.meMarker = null; sos.ambMarker = null; sos.routeLayers = null; sos.fitted = false; sos.centred = false;
     sosPanel(`
         <h2><i class="fas fa-truck-medical"></i> Emergency SOS</h2>
         <div class="sos-status" id="sosStatus">Contacting hospital…</div>
@@ -187,7 +187,7 @@ function sosShowTracking() {
 
 function sosRefresh() {
     if (!sos.token) return;
-    fetch('sosApi.php?action=track&token=' + encodeURIComponent(sos.token))
+    fetch('api/sos?action=track&token=' + encodeURIComponent(sos.token))
         .then(r => r.json())
         .then(data => {
             if (data.status !== 'success') { sosStopTracking(); sosHide(); return; }
@@ -209,7 +209,7 @@ function sosRender(data) {
         text = `Alert received by ${shEsc(hospital.name)}.<small>${hasLoc ? 'Your location has been shared. An ambulance is being assigned…' : 'We could not read your location — please enter your phone number so the hospital can call you.'}</small>`;
     } else if (a.state === 'Dispatched') {
         ok = true;
-        text = `Ambulance ${shEsc(amb.vehicle_no)} is on the way${data.eta ? ` — about ${data.eta.minutes} min (${data.eta.km} km)` : ''}.<small>Driver: ${shEsc(amb.driver_name)} ${shEsc(amb.driver_phone || '')}</small>`;
+        text = `Ambulance ${shEsc(amb.vehicle_no)} is on the way${data.eta ? ` — about ${data.eta.minutes} min (${data.eta.km} km by road)` : ''}.<small>Driver: ${shEsc(amb.driver_name)} ${shEsc(amb.driver_phone || '')}${data.eta && !data.eta.live ? ' · estimated position on the route' : (amb.live ? ' · live GPS' : '')}</small>`;
     } else if (a.state === 'Arrived') {
         ok = true;
         text = `Ambulance ${shEsc(amb.vehicle_no)} has arrived at your location.`;
@@ -242,6 +242,12 @@ function sosRender(data) {
         sos.map = L.map('sosMap', { zoomControl: false }).setView([hasLoc ? a.lat : hospital.lat, hasLoc ? a.lng : hospital.lng], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(sos.map);
         setTimeout(() => sos.map && sos.map.invalidateSize(), 150);
+        L.marker([hospital.lat, hospital.lng], { icon: shPin('hosp', 'fa-hospital') }).addTo(sos.map).bindPopup(shEsc(hospital.name));
+    }
+    // road route from the ambulance's start to the caller: grey where it has driven, red still to go
+    if (data.route && typeof amDrawRoute === 'function') {
+        sos.routeLayers = sos.routeLayers || {};
+        amDrawRoute(sos.map, sos.routeLayers, data.route, data.eta ? data.eta.fraction : (a.state === 'Dispatched' ? 0 : 1));
     }
     const points = [];
     if (hasLoc) {
@@ -253,7 +259,7 @@ function sosRender(data) {
             sos.meMarker.on('dragend', () => {
                 const at = sos.meMarker.getLatLng();
                 localStorage.setItem(SOS_KEY + 'Manual', '1');
-                shPost('sosApi.php?action=updateLocation', { token: sos.token, lat: at.lat, lng: at.lng, accuracy: 0 })
+                shPost('api/sos?action=updateLocation', { token: sos.token, lat: at.lat, lng: at.lng, accuracy: 0 })
                     .finally(() => { sos.dragging = false; sosRefresh(); });
             });
         } else if (!sos.dragging) {
@@ -280,7 +286,8 @@ function sosRender(data) {
     }
     if (amb && amb.lat !== null) {
         const p = [parseFloat(amb.lat), parseFloat(amb.lng)];
-        sos.ambMarker ? sos.ambMarker.setLatLng(p) : (sos.ambMarker = L.marker(p, { icon: shPin('amb', 'fa-truck-medical') }).addTo(sos.map).bindPopup('Ambulance'));
+        if (sos.ambMarker) (typeof amGlide === 'function' ? amGlide(sos.ambMarker, p, 1200) : sos.ambMarker.setLatLng(p));
+        else sos.ambMarker = L.marker(p, { icon: shPin('amb', 'fa-truck-medical'), zIndexOffset: 900 }).addTo(sos.map).bindPopup('Ambulance');
         points.push(p);
         if (sos.fitted && !sos.map.getBounds().contains(p)) sos.fitted = false; // ambulance drove off screen: re-frame
     }
@@ -296,13 +303,13 @@ function sosRender(data) {
 function sosSendPhone() {
     const phone = document.getElementById('sosPhone').value.trim();
     if (phone.replace(/\D/g, '').length < 10) return shToast('Please enter a valid mobile number.', 'error');
-    shPost('sosApi.php?action=updateLocation', { token: sos.token, phone })
+    shPost('api/sos?action=updateLocation', { token: sos.token, phone })
         .then(() => { document.getElementById('sosPhoneBox').innerHTML = '<p>Thank you — the hospital will call you.</p>'; });
 }
 
 async function sosCancel() {
     if (!await shConfirm('Cancel the emergency alert? The ambulance will be told not to come.', { yes: 'Yes, cancel alert', no: 'Keep alert', danger: true })) return;
-    shPost('sosApi.php?action=cancel', { token: sos.token }).finally(() => { sosStopTracking(); sosHide(); });
+    shPost('api/sos?action=cancel', { token: sos.token }).finally(() => { sosStopTracking(); sosHide(); });
 }
 
 // Resume tracking after a page reload
@@ -318,8 +325,8 @@ function loadHealthCard() {
     if (!healthCard) box.innerHTML = '<div class="hc-layout"><div class="ap-skeleton" style="height: 320px;"></div><div class="ap-skeleton" style="height: 320px;"></div></div>';
 
     Promise.all([
-        fetch('patientApi.php?action=card').then(r => r.json()),
-        fetch('patientApi.php?action=prescriptions').then(r => r.json())
+        fetch('api/patient?action=card').then(r => r.json()),
+        fetch('api/patient?action=prescriptions').then(r => r.json())
     ]).then(([cardRes, rxRes]) => {
         if (cardRes.status !== 'success') {
             // No server session (e.g. logged in before this feature existed)
@@ -459,7 +466,7 @@ function hcTilt() {
 }
 
 function saveMedicalInfo() {
-    shPost('patientApi.php?action=saveMedical', {
+    shPost('api/patient?action=saveMedical', {
         allergies: document.getElementById('hcAllergies').value,
         conditions: document.getElementById('hcConditions').value,
         emergency_contact: document.getElementById('hcEmergency').value
@@ -472,7 +479,7 @@ function saveMedicalInfo() {
 
 async function regenerateHealthCard() {
     if (!await shConfirm('Create a new QR code? Any card you printed earlier will stop working.', { yes: 'Create new QR' })) return;
-    shPost('patientApi.php?action=regenerate', {}).then(loadHealthCard);
+    shPost('api/patient?action=regenerate', {}).then(loadHealthCard);
 }
 
 function printHealthCard() {

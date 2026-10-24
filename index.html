@@ -457,7 +457,8 @@
     <link href="appointments.css?v=2" rel="stylesheet">
     <link href="profile.css?v=3" rel="stylesheet">
     <link href="blog.css?v=1" rel="stylesheet">
-    <link href="ambulance.css?v=2" rel="stylesheet">
+    <link href="ambulance.css?v=4" rel="stylesheet">
+    <link href="lab.css?v=3" rel="stylesheet">
 </head>
 <body>
 
@@ -581,6 +582,7 @@
             <div class="nav-item" style="--n: 2;" data-tooltip="AI Symptom Check" onclick="switchView('ai-checker')"><span class="nav-ico"><i class="fas fa-stethoscope"></i></span> <span class="nav-label">AI Symptom Check</span> <span class="nav-tag">AI</span></div>
             <div class="nav-item" style="--n: 3;" data-tooltip="Medicine Store" onclick="switchView('store')"><span class="nav-ico"><i class="fas fa-pills"></i></span> <span class="nav-label">Medicine Store</span> <span class="st-count st-cart-count" style="display:none;">0</span></div>
             <div class="nav-item" style="--n: 4;" data-tooltip="My Health Card" onclick="switchView('healthcard')"><span class="nav-ico"><i class="fas fa-id-card"></i></span> <span class="nav-label">My Health Card</span></div>
+            <div class="nav-item" style="--n: 4;" data-tooltip="Lab Tests" onclick="switchView('lab')"><span class="nav-ico"><i class="fas fa-flask-vial"></i></span> <span class="nav-label">Lab Tests</span> <span class="nav-count" id="navLab" hidden></span></div>
             <div class="nav-item nav-item--danger" style="--n: 5;" data-tooltip="Book Ambulance" onclick="switchView('ambulance')"><span class="nav-ico"><i class="fas fa-truck-medical"></i></span> <span class="nav-label">Book Ambulance</span></div>
             <div class="nav-group">Account</div>
             <div class="nav-item" style="--n: 6;" data-tooltip="My Profile" onclick="switchView('profile')"><span class="nav-ico"><i class="fas fa-user"></i></span> <span class="nav-label">My Profile</span></div>
@@ -863,6 +865,24 @@
                 <div id="store-body"></div>
             </div>
 
+            <div id="lab-view" style="display: none;">
+                <section class="lb-hero">
+                    <div>
+                        <span class="lb-kicker"><i class="fas fa-flask-vial"></i>Pathology &amp; Diagnostics</span>
+                        <h2>Lab Tests</h2>
+                        <p>Book blood tests, health packages, ECG and X-ray. Get a sample collected at home or visit the lab, and read your report here with every value checked against its normal range.</p>
+                        <div class="lb-hero-facts">
+                            <span><i class="fas fa-house-medical"></i>Home sample collection</span>
+                            <span><i class="fas fa-file-medical"></i>Online reports</span>
+                            <span><i class="fas fa-user-doctor"></i>Shared with your doctor</span>
+                        </div>
+                    </div>
+                    <div class="lb-hero-art" aria-hidden="true"><i class="fas fa-vial"></i><i class="fas fa-microscope"></i><i class="fas fa-droplet"></i></div>
+                </section>
+                <div class="ap-tabs lb-tabs" id="lbTabs" role="tablist"></div>
+                <div id="lab-body"></div>
+            </div>
+
             <div id="bookings-view" style="display: none;">
                 <div class="ap-head">
                     <div>
@@ -932,9 +952,21 @@
                                 <div class="pf-input"><i class="fas fa-phone"></i><input type="tel" id="ambPhone" placeholder="Enter mobile number"></div>
                             </div>
                         </div>
+                        <span class="am-label">Pickup point on the map</span>
+                        <div class="am-locate">
+                            <button type="button" class="am-gps" id="amGpsBtn" onclick="ambUseGps()"><i class="fas fa-location-crosshairs"></i> Use my current location</button>
+                            <div class="am-search">
+                                <i class="fas fa-magnifying-glass"></i>
+                                <input type="search" id="amSearch" placeholder="Search area, building or landmark (e.g. Andheri station)" autocomplete="off" aria-label="Search pickup place">
+                                <div class="am-results" id="amResults" hidden></div>
+                            </div>
+                        </div>
+                        <div class="am-map" id="amMap" aria-label="Map: tap to set the pickup point"></div>
+                        <p class="am-map-hint" id="amMapHint"><i class="fas fa-hand-pointer"></i>Tap the map or drag the red pin to the exact pickup point. The green pin is our hospital in Mumbai.</p>
+                        <div class="am-route" id="amRoute" hidden></div>
                         <div class="form-group">
-                            <label for="ambAddress">Pickup Location / Exact Address</label>
-                            <textarea id="ambAddress" rows="3" placeholder="House / flat no., street, landmark, city"></textarea>
+                            <label for="ambAddress">Pickup Address (house / flat no., landmark)</label>
+                            <textarea id="ambAddress" rows="2" placeholder="Filled in from the map - add the flat number and a landmark"></textarea>
                         </div>
                         <button type="button" class="btn am-submit" id="amSubmit" onclick="ambSubmit()"><i class="fas fa-truck-medical"></i> Confirm Ambulance Booking</button>
                     </div>
@@ -944,10 +976,10 @@
                             <h4>What happens next</h4>
                             <ol class="am-steps">
                                 <li><span>1</span><div><b>The hospital gets your request</b><p>It appears on the emergency desk as soon as you confirm.</p></div></li>
-                                <li><span>2</span><div><b>An ambulance is dispatched</b><p>The desk sends the ambulance to the address you gave.</p></div></li>
-                                <li><span>3</span><div><b>You can follow the status</b><p>It changes from “Awaiting dispatch” to “Dispatched” in My Appointments.</p></div></li>
+                                <li><span>2</span><div><b>An ambulance is dispatched</b><p>The nearest free ambulance leaves the hospital on the road route shown on the map.</p></div></li>
+                                <li><span>3</span><div><b>Follow it live</b><p>See the ambulance move on the map with the distance and time left, until it reaches you.</p></div></li>
                             </ol>
-                            <button type="button" class="ap-btn" onclick="ambTrack()"><i class="fas fa-list-check"></i>See my ambulance requests</button>
+                            <button type="button" class="ap-btn" onclick="ambTrack()"><i class="fas fa-map-location-dot"></i>Track my ambulance requests</button>
                         </div>
                         <div class="am-box">
                             <h4>While you wait</h4>
@@ -998,6 +1030,7 @@
                         <li><a href="#" onclick="switchView('home'); dashScrollTo('dash-doctors'); return false;"><i class="fas fa-chevron-right"></i>Find a doctor</a></li>
                         <li><a href="#" onclick="switchView('ai-checker'); return false;"><i class="fas fa-chevron-right"></i>AI Symptom Check</a></li>
                         <li><a href="#" onclick="switchView('store'); return false;"><i class="fas fa-chevron-right"></i>Medicine Store</a></li>
+                        <li><a href="#" onclick="switchView('lab'); return false;"><i class="fas fa-chevron-right"></i>Lab Tests &amp; Reports</a></li>
                         <li><a href="#" onclick="switchView('ambulance'); return false;"><i class="fas fa-chevron-right"></i>Emergency ambulance</a></li>
                         <li><a href="#" onclick="switchView('blog'); return false;"><i class="fas fa-chevron-right"></i>Health Blog</a></li>
                     </ul>
@@ -1017,7 +1050,7 @@
                     <ul>
                         <li><i class="fas fa-phone"></i><span><small>Helpline</small><a href="tel:+9118001234567">+91 1800-123-4567</a></span></li>
                         <li><i class="fas fa-envelope"></i><span><small>Email</small><a href="mailto:support@smarthealth.com">support@smarthealth.com</a></span></li>
-                        <li><i class="fas fa-location-dot"></i><span><small>Address</small>123 Health Avenue, Medical City, 40001</span></li>
+                        <li><i class="fas fa-location-dot"></i><span><small>Address</small>Cross Road B, MIDC, Andheri East, Mumbai 400096</span></li>
                     </ul>
                 </div>
             </div>
@@ -1102,7 +1135,7 @@ document.getElementById(
             updateSidebarUserInfo();
         }
         
-fetch("getDoctors.php")
+fetch("api/doctors")
       .then(res=>res.json())
       .then(data=>{
           doctors=data.map(d=>({
@@ -1137,7 +1170,7 @@ const email=document.getElementById("authEmail").value;
 const password=document.getElementById("authPassword").value;
 const name=document.getElementById("authName").value;
 
-let file=isLoginMode ? "login.php":"register.php";
+let file=isLoginMode ? "api/auth/login":"api/auth/register";
 
 fetch(file, {
             method: "POST",
@@ -1259,7 +1292,7 @@ shToast("Server Error", "error");
         formData.append("email", googleEmail);
         formData.append("credential", response.credential); // server isko Google se verify karta hai
 
-        fetch("saveGoogleUser.php", {
+        fetch("api/auth/google", {
             method: "POST",
             body: formData
         })
@@ -1325,7 +1358,7 @@ shToast("Server Error", "error");
 
         const fd = new FormData();
         fd.append('password', pw);
-        fetch('setPassword.php', { method: 'POST', body: fd })
+        fetch('api/auth/set-password', { method: 'POST', body: fd })
             .then(res => res.json())
             .then(r => {
                 if (r.status === 'success') {
@@ -1361,7 +1394,7 @@ shToast("Server Error", "error");
         currentUser = null;
         localStorage.removeItem('smartHealthUser');
         // Server session bhi khatam karein, phir reload ke baad message dikhega
-        try { await fetch('logout.php', { method: 'POST' }); } catch (e) {}
+        try { await fetch('api/auth/logout', { method: 'POST' }); } catch (e) {}
         sessionStorage.setItem('shFlash', 'You have been logged out.');
         window.location.reload(); 
     }
@@ -1393,7 +1426,7 @@ shToast("Server Error", "error");
         formData.append('blood', blood);
         formData.append('address', address);
 
-        fetch('updateProfile.php', {
+        fetch('api/profile', {
             method: 'POST',
             body: formData
         })
@@ -1445,6 +1478,7 @@ shToast("Server Error", "error");
         document.getElementById('bookings-view').style.display = 'none';
         document.getElementById('blog-view').style.display = 'none';
         document.getElementById('ambulance-view').style.display = 'none';
+        document.getElementById('lab-view').style.display = 'none';
         
         // Show specific view
         if(document.getElementById(`${view}-view`)) {
@@ -1458,6 +1492,7 @@ shToast("Server Error", "error");
         if (view === 'profile') { loadProfileData(); profRefresh(); }
         if (view === 'blog') blRender();
         if (view === 'ambulance') ambOpen();
+        if (view === 'lab') labOpen();
         headerSetPage(view);
         if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('active');
         
@@ -1543,9 +1578,9 @@ shToast("Server Error", "error");
         resultBox.style.display = 'none';
         loader.style.display = 'block';
 
-        // The Gemini API key stays on the server: aiApi.php makes the AI call
+        // The Gemini API key stays on the server: api/ai makes the AI call
         try {
-            const response = await fetch('aiApi.php?action=symptoms', {
+            const response = await fetch('api/ai?action=symptoms', {
                 method: 'POST',
                 body: new URLSearchParams({ symptoms: input })
             });
@@ -1623,7 +1658,7 @@ function confirmBooking() {
         formData.append("date", date);
         formData.append("time", selectedTimeSlot);
 
-        fetch("book.php", {
+        fetch("api/bookings/book", {
             method: "POST",
             body: formData
         })
@@ -1666,7 +1701,7 @@ function confirmBooking() {
 
         if (type === 'doctor') {
             // Database mein status 'Cancelled' update karne ke liye request
-            fetch(`updateBookingStatus.php?id=${id}&status=Cancelled`)
+            fetch(`api/bookings/status?id=${id}&status=Cancelled`)
             .then(res => res.text())
             .then(data => {
                 shToast("Booking cancelled successfully.", "success");
@@ -1674,68 +1709,26 @@ function confirmBooking() {
                 refreshDashboard(); // sidebar count aur dashboard bhi
             });
         } else if (type === 'ambulance') {
-            let bookings = JSON.parse(localStorage.getItem('smartHealthAmbBookings')) || [];
-            let index = bookings.findIndex(b => b.id === id);
-            if(index > -1) {
-                bookings[index].status = 'Cancelled';
-                localStorage.setItem('smartHealthAmbBookings', JSON.stringify(bookings));
-            }
-            shToast("Booking cancelled successfully.", "success");
-            renderBookings(); 
+            ambCancelRequest(id);
         }
     }
 
-    // --- 6. AMBULANCE BOOKING LOGIC ---
-   function bookAmbulance() {
-        const name = document.getElementById('ambName').value;
-        const phone = document.getElementById('ambPhone').value;
-        const address = document.getElementById('ambAddress').value;
-        const type = document.getElementById('ambType').value;
-
-        if(!name || !phone || !address){
-            return shToast("Please provide all details!", "error");
-        }
-
-        // Backend ko data bhejne ki taiyari
-        let formData = new FormData();
-        formData.append("user", currentUser.email); // <-- YE LINE HONI ZAROORI HAI
-        formData.append("name", name);
-        formData.append("phone", phone);
-        formData.append("pickup", address);
-        formData.append("destination", type);
-
-        fetch("bookAmbulance.php", {
-            method: "POST",
-            body: formData
-        })
-        .then(res => res.text())
-        .then(data => {
-            shToast(data, data.includes("Success") ? "success" : "error"); // "Ambulance Booked Successfully"
-            ambDone();
-            document.getElementById("ambName").value = "";
-            document.getElementById("ambPhone").value = "";
-            document.getElementById("ambAddress").value = "";
-            if(document.getElementById('bookings-view').style.display === 'block') renderBookings();
-        })
-        .catch(err => {
-            console.log(err);
-            ambDone();
-            shToast("Server Error", "error");
-        });
-    }
+    // Ambulance booking, the map picker and live tracking are in ambulance.js
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="popups.js?v=1"></script>
-<script src="features.js?v=7"></script>
+<script src="features.js?v=8"></script>
 <script src="store.js?v=9"></script>
-<script src="search.js?v=3"></script>
-<script src="dashboard.js?v=9"></script>
-<script src="appointments.js?v=1"></script>
+<script src="search.js?v=4"></script>
+<script src="dashboard.js?v=10"></script>
+<script src="appointments.js?v=2"></script>
 <script src="profile.js?v=1"></script>
 <script src="blog.js?v=1"></script>
-<script src="ambulance.js?v=1"></script>
+<script src="ambulance.js?v=2"></script>
+<script src="lab-report.js?v=1"></script>
+<script src="lab.js?v=3"></script>
 
 </body>
 </html>

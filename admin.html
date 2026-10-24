@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <link rel="stylesheet" href="popups.css?v=1">
     <link rel="stylesheet" href="admin.css?v=4">
-    <link rel="stylesheet" href="admin-features.css?v=9">
+    <link rel="stylesheet" href="admin-features.css?v=10">
 </head>
 <body>
 
@@ -85,6 +85,12 @@
                 <ul class="nav-links">
                     <li data-tab="ambulance-bookings-tab" title="Ambulance Bookings"><i class="fas fa-truck-medical"></i> <span class="nav-label">Ambulance Bookings</span></li>
                     <li data-tab="sos-tab" title="SOS Alerts"><i class="fas fa-triangle-exclamation"></i> <span class="nav-label">SOS Alerts</span> <span class="nav-badge" id="sos-badge">0</span></li>
+                </ul>
+
+                <div class="nav-group">Laboratory</div>
+                <ul class="nav-links">
+                    <li data-tab="lab-tab" title="Lab Bookings"><i class="fas fa-flask-vial"></i> <span class="nav-label">Lab Bookings</span> <span class="nav-badge" id="lab-badge">0</span></li>
+                    <li data-tab="lab-tests-tab" title="Test Catalogue"><i class="fas fa-list-check"></i> <span class="nav-label">Test Catalogue</span></li>
                 </ul>
 
                 <div class="nav-group">Pharmacy</div>
@@ -223,20 +229,69 @@
                     <!-- ---------------- Ambulance bookings ---------------- -->
                     <section id="ambulance-bookings-tab" class="content-section">
                         <div class="page-head">
-                            <div><h1>Ambulance Bookings</h1><p>Ambulance requests submitted by patients from the website. Dispatch a request once a vehicle has been sent.</p></div>
+                            <div><h1>Ambulance Bookings</h1><p>Requests patients book on the website with a pickup point on the map. Dispatch sends a fleet ambulance from the hospital along the road route, and the patient follows it live.</p></div>
                             <div class="page-actions"><button class="btn btn--outline" onclick="loadAmbulanceBookings()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+                        <div class="ord-stats" id="amb-stats"></div>
+                        <div class="card">
+                            <div class="card-head"><h2>Live Route Map</h2><span class="ord-summary" id="amb-map-note" style="margin: 0;"></span></div>
+                            <div class="card-body"><div id="amb-admin-map"></div></div>
                         </div>
                         <div class="card">
                             <div class="card-head">
                                 <h2>Requests <span class="count" id="amb-count">0</span></h2>
                                 <div class="card-tools">
                                     <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="amb-search" placeholder="Search patient, phone, address" oninput="renderAmbulance()"></div>
+                                    <select class="field" id="amb-filter" onchange="renderAmbulance()">
+                                        <option value="open">Open requests</option>
+                                        <option value="">All requests</option>
+                                        <option value="Completed">Completed</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="table-container">
                                 <table>
-                                    <thead><tr><th>Patient</th><th>Contact</th><th>Address / Location</th><th>Emergency Type</th><th>Status</th><th>Action</th></tr></thead>
+                                    <thead><tr><th>Patient</th><th>Pickup</th><th>Route from hospital</th><th>Emergency</th><th>Status</th><th>Action</th></tr></thead>
                                     <tbody id="amb-bookings-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ---------------- Laboratory ---------------- -->
+                    <section id="lab-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Lab Bookings</h1><p>Mark samples as collected, type in the results (calculated values and High / Low flags are filled in automatically) and publish the report to the patient.</p></div>
+                            <div class="page-actions"><button class="btn btn--outline" onclick="loadLab()"><i class="fas fa-rotate"></i> Refresh</button></div>
+                        </div>
+                        <div class="ord-stats" id="lab-stats"></div>
+                        <div class="card">
+                            <div class="card-head">
+                                <h2 id="lab-list-title">Bookings <span class="count" id="lab-count">0</span></h2>
+                                <div class="card-tools">
+                                    <div class="search-box"><i class="fas fa-magnifying-glass"></i><input class="field" type="search" id="lab-search" placeholder="Search booking no., patient, phone, test" oninput="renderLab()"></div>
+                                </div>
+                            </div>
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Booking</th><th>Patient</th><th>Tests</th><th>Collection</th><th>Status</th><th>Action</th></tr></thead>
+                                    <tbody id="lab-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section id="lab-tests-tab" class="content-section">
+                        <div class="page-head">
+                            <div><h1>Test Catalogue</h1><p>The tests patients can book, with prices and reference ranges. Check the ranges against your own analysers. A switched-off test is hidden from patients.</p></div>
+                            <div class="page-actions"><button class="btn" onclick="openLabTest()"><i class="fas fa-plus"></i> Add Test</button></div>
+                        </div>
+                        <div class="card">
+                            <div class="table-container">
+                                <table>
+                                    <thead><tr><th>Test</th><th>Category</th><th>Sample / Prep</th><th>Price</th><th>Report in</th><th>Shown</th><th>Action</th></tr></thead>
+                                    <tbody id="lab-tests-body"></tbody>
                                 </table>
                             </div>
                         </div>
@@ -398,6 +453,28 @@
                     <tbody id="rec-body"></tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <!-- Lab results entry -->
+    <div class="modal" id="labResultModal" style="display:none;">
+        <div class="modal-content lab-modal">
+            <div class="modal-header">
+                <h3 id="lab-res-title">Enter results</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeLabModal('labResultModal')">&times;</button>
+            </div>
+            <div id="lab-res-body"></div>
+        </div>
+    </div>
+
+    <!-- Lab test add / edit -->
+    <div class="modal" id="labTestModal" style="display:none;">
+        <div class="modal-content lab-modal">
+            <div class="modal-header">
+                <h3 id="lab-test-title">Add Test</h3>
+                <button class="modal-close" type="button" aria-label="Close" onclick="closeLabModal('labTestModal')">&times;</button>
+            </div>
+            <div id="lab-test-body"></div>
         </div>
     </div>
 
@@ -580,7 +657,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="popups.js?v=1"></script>
-    <script src="admin.js?v=4"></script>
-    <script src="admin-features.js?v=21"></script>
+    <script src="admin.js?v=5"></script>
+    <script src="admin-features.js?v=22"></script>
+    <script src="lab-report.js?v=1"></script>
+    <script src="admin-lab.js?v=1"></script>
 </body>
 </html>

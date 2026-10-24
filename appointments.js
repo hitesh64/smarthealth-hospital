@@ -64,20 +64,36 @@ function apDocCard(b, i) {
         </article>`;
 }
 
+// Ambulance request card: where it stands, the road distance from the hospital, and live tracking
+const AP_AMB = {
+    Pending: { tone: 'is-urgent', icon: 'fa-hourglass-half', text: 'Awaiting dispatch', step: 1 },
+    Dispatched: { tone: 'is-urgent', icon: 'fa-truck-medical', text: 'On the way', step: 2 },
+    Arrived: { tone: 'is-accepted', icon: 'fa-location-dot', text: 'Arrived', step: 3 },
+    Completed: { tone: 'is-done', icon: 'fa-circle-check', text: 'Completed', step: 4 },
+    Cancelled: { tone: 'is-off', icon: 'fa-ban', text: 'Cancelled', step: 0 }
+};
+
 function apAmbCard(b, i) {
-    const sent = b.status === 'Dispatched';
+    const s = AP_AMB[b.status] || AP_AMB.Pending, open = ['Pending', 'Dispatched', 'Arrived'].includes(b.status);
+    const route = b.route_summary, eta = b.eta;
     return `
-        <article class="ap-card ${sent ? 'is-done' : 'is-urgent'}" style="--i: ${Math.min(i, 8)};">
+        <article class="ap-card ${s.tone}" style="--i: ${Math.min(i, 8)};">
             <div class="ap-date"><i class="fas fa-truck-medical"></i><span>Ambulance</span></div>
             <div class="ap-main">
-                <div class="ap-doc"><div style="min-width: 0;"><h4>${shEsc(b.emergency_type || 'Emergency')}</h4><p>For ${shEsc(b.patient_name)}</p></div></div>
+                <div class="ap-doc"><div style="min-width: 0;"><h4>${shEsc(b.emergency_type || 'Emergency')}</h4><p>For ${shEsc(b.patient_name)}${b.created_at ? ' · ' + shEsc(String(b.created_at).slice(0, 16)) : ''}</p></div></div>
                 <div class="ap-meta">
                     <span><i class="fas fa-location-dot"></i>${shEsc(b.address)}</span>
-                    ${b.phone ? `<span><i class="fas fa-phone"></i>${shEsc(b.phone)}</span>` : ''}
+                    ${route ? `<span><i class="fas fa-route"></i>${route.km} km from hospital</span>` : ''}
+                    ${b.ambulance ? `<span><i class="fas fa-truck-medical"></i>${shEsc(b.ambulance.vehicle_no)}</span>` : ''}
+                    ${eta ? `<span class="ap-when">${eta.minutes_left > 0 ? 'About ' + eta.minutes_left + ' min away' : 'Arriving now'}</span>` : ''}
                 </div>
-                ${apSteps(['Requested', 'Dispatched'], sent ? 2 : 1)}
+                ${s.step ? apSteps(['Requested', 'Dispatched', 'Arrived', 'Completed'], s.step) : `<p class="ap-note"><i class="fas fa-circle-info"></i>This request was cancelled.</p>`}
             </div>
-            <div class="ap-side"><span class="ap-status"><i class="fas ${sent ? 'fa-circle-check' : 'fa-hourglass-half'}"></i>${sent ? 'Dispatched' : 'Awaiting dispatch'}</span></div>
+            <div class="ap-side">
+                <span class="ap-status"><i class="fas ${s.icon}"></i>${s.text}</span>
+                ${b.pickup_lat !== null || open ? `<button type="button" class="ap-btn" onclick="ambTrackOpen(${+b.id})"><i class="fas fa-map-location-dot"></i>${open ? 'Track live' : 'View route'}</button>` : ''}
+                ${['Pending', 'Dispatched'].includes(b.status) ? `<button type="button" class="ap-btn ap-btn--danger" onclick="cancelBooking(${+b.id}, 'ambulance')"><i class="fas fa-xmark"></i>Cancel</button>` : ''}
+            </div>
         </article>`;
 }
 
@@ -147,11 +163,11 @@ function renderBookings() {
     const me = String(currentUser.email).toLowerCase().trim();
     const mine = b => b.user_id && String(b.user_id).toLowerCase().trim() === me;
     Promise.all([
-        fetch('getBookings.php').then(r => r.json()),
-        fetch('getAmbulance.php').then(r => r.json())
-    ]).then(([docBookings, ambBookings]) => {
+        fetch('api/bookings').then(r => r.json()),
+        fetch('api/ambulance').then(r => r.json())
+    ]).then(([docBookings, ambRes]) => {
         ap.doc = docBookings.filter(mine);
-        ap.amb = ambBookings.filter(mine).reverse(); // newest request first
+        ap.amb = (ambRes.requests || []).filter(mine); // newest request first
         ap.loaded = true;
         apDraw();
     }).catch(() => {

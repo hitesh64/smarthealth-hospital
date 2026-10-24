@@ -29,7 +29,8 @@ function startAdminFeatures() {
     loadSos();
     loadMedicines();
     loadOrders();
-    afApi('adminApi.php', 'sendReminders').catch(() => {});
+    if (typeof loadLab === 'function') loadLab();
+    afApi('api/admin', 'sendReminders').catch(() => {});
     clearInterval(afTimer);
     afTimer = setInterval(loadSos, 5000); // SOS alerts must show up without a refresh
     clearInterval(afOrderTimer);
@@ -43,7 +44,7 @@ function startAdminFeatures() {
 (function resumeAdminSession() {
     const auth = document.getElementById('auth-view');
     auth.style.visibility = 'hidden'; // no login-form flash while we check
-    fetch('adminApi.php?action=me').then(r => r.json()).then(res => {
+    fetch('api/admin?action=me').then(r => r.json()).then(res => {
         if (res.status !== 'success') throw new Error('not logged in');
         enterDashboard(res.name);
     }).catch(() => {}).finally(() => { auth.style.visibility = ''; });
@@ -100,7 +101,7 @@ function afChart(id, type, labels, data, color, options) {
 
 function loadAnalytics() {
     const from = document.getElementById('an-from').value, to = document.getElementById('an-to').value;
-    afApi('adminApi.php', 'analytics', { from, to }).then(d => {
+    afApi('api/admin', 'analytics', { from, to }).then(d => {
         const stats = document.getElementById('an-stats');
         if (d.status !== 'success') { stats.innerHTML = AF_NO_SESSION; return; }
         const s = d.summary;
@@ -132,7 +133,7 @@ function loadAnalytics() {
 
 function exportReport() {
     const from = document.getElementById('an-from').value, to = document.getElementById('an-to').value;
-    window.location.href = `adminApi.php?action=export&from=${from}&to=${to}`;
+    window.location.href = `api/admin?action=export&from=${from}&to=${to}`;
 }
 
 // =====================================================================
@@ -186,7 +187,7 @@ function renderSosStats(s) {
 }
 
 function loadSos() {
-    afApi('sosApi.php', 'list').then(d => {
+    afApi('api/sos', 'list').then(d => {
         const list = document.getElementById('sos-list');
         if (d.status !== 'success') { list.innerHTML = AF_NO_SESSION; return; }
 
@@ -294,7 +295,7 @@ function copyDriverLink(token) {
 }
 
 function dispatchSos(id) {
-    afApi('sosApi.php', 'dispatch', {}, { id, ambulance_id: document.getElementById('sos-amb-' + id).value }).then(res => {
+    afApi('api/sos', 'dispatch', {}, { id, ambulance_id: document.getElementById('sos-amb-' + id).value }).then(res => {
         if (res.status !== 'success') shToast(res.message, 'error');
         loadSos();
     });
@@ -302,12 +303,12 @@ function dispatchSos(id) {
 
 async function resolveSos(id) {
     if (!await shConfirm('Close this emergency?', { yes: 'Yes, close it' })) return;
-    afApi('sosApi.php', 'resolve', {}, { id }).then(loadSos);
+    afApi('api/sos', 'resolve', {}, { id }).then(loadSos);
 }
 
 function addAmbulanceUnit(e) {
     e.preventDefault();
-    afApi('sosApi.php', 'addAmbulance', {}, {
+    afApi('api/sos', 'addAmbulance', {}, {
         vehicle_no: document.getElementById('amb-vehicle').value,
         driver_name: document.getElementById('amb-driver').value,
         driver_phone: document.getElementById('amb-phone').value
@@ -320,7 +321,7 @@ function addAmbulanceUnit(e) {
 
 async function deleteAmbulanceUnit(id) {
     if (!await shConfirm('Remove this ambulance from the fleet? Its driver link will stop working.', { yes: 'Remove', danger: true })) return;
-    afApi('sosApi.php', 'deleteAmbulance', {}, { id }).then(res => {
+    afApi('api/sos', 'deleteAmbulance', {}, { id }).then(res => {
         if (res.status !== 'success') shToast(res.message, 'error');
         loadSos();
     });
@@ -363,7 +364,7 @@ function setMedFilter(filter) {
 }
 
 function loadMedicines() {
-    afApi('adminApi.php', 'medicines').then(d => {
+    afApi('api/admin', 'medicines').then(d => {
         if (d.status !== 'success') { document.getElementById('med-body').innerHTML = `<tr><td colspan="8">${AF_NO_SESSION}</td></tr>`; return; }
         afMedicines = d.medicines;
 
@@ -435,7 +436,7 @@ function renderMedicines() {
 async function adjustStock(id, sign) {
     const qty = parseInt(await shPrompt(sign > 0 ? 'Quantity received:' : 'Quantity sold / used:', '10', { type: 'number', yes: 'Update stock' }), 10);
     if (!qty || qty < 0) return;
-    afApi('adminApi.php', 'adjustStock', {}, { id, delta: sign * qty }).then(res => {
+    afApi('api/admin', 'adjustStock', {}, { id, delta: sign * qty }).then(res => {
         if (res.status === 'success') shToast('Stock updated: ' + res.stock + ' in stock', 'success');
         else shToast(res.message || 'Could not update stock', 'error');
         loadMedicines();
@@ -506,7 +507,7 @@ function saveMedicine(e) {
     if (photo) data.image = photo;
     const btn = document.getElementById('med-save');
     btn.disabled = true;
-    afApi('adminApi.php', 'saveMedicine', {}, data).then(res => {
+    afApi('api/admin', 'saveMedicine', {}, data).then(res => {
         if (res.status !== 'success') return shToast(res.message, 'error');
         shToast(data.id ? 'Medicine updated.' : 'Medicine added.', 'success');
         closeMedicineForm();
@@ -517,7 +518,7 @@ function saveMedicine(e) {
 
 async function deleteMedicine(id) {
     if (!await shConfirm('Remove this medicine from the stock list and the patient store?', { yes: 'Remove', danger: true })) return;
-    afApi('adminApi.php', 'deleteMedicine', {}, { id }).then(loadMedicines);
+    afApi('api/admin', 'deleteMedicine', {}, { id }).then(loadMedicines);
 }
 
 // =====================================================================
@@ -575,7 +576,7 @@ const AF_PAY_BADGE = { 'Pending': 'pending', 'Submitted': 'danger', 'Paid': 'con
 let afUpiId = '';
 
 function loadOrders() {
-    afApi('adminApi.php', 'orders').then(d => {
+    afApi('api/admin', 'orders').then(d => {
         if (d.status !== 'success') { document.getElementById('ord-list').innerHTML = AF_NO_SESSION; return; }
         afOrders = d.orders;
         afOrderStats = d.stats;
@@ -658,7 +659,7 @@ async function advanceOrder(id) {
         if (!/^\d{6}$/.test(otp.trim())) return shToast('The OTP is 6 digits.', 'error');
         body.otp = otp.trim();
     }
-    afApi('adminApi.php', 'orderStatus', {}, body).then(res => {
+    afApi('api/admin', 'orderStatus', {}, body).then(res => {
         if (res.status !== 'success') shToast(res.message, 'error');
         else shToast(res.new_status === 'Out for Delivery' && o.delivery_type !== 'Pickup'
             ? `${o.order_no}: out for delivery. A delivery OTP has been emailed to the patient.`
@@ -670,7 +671,7 @@ async function advanceOrder(id) {
 async function resendOtp(id) {
     const o = afOrders.find(x => x.id == id);
     if (!o || !await shConfirm(`Email a NEW delivery OTP to ${o.user_email}? The old OTP will stop working.`, { yes: 'Send new OTP' })) return;
-    afApi('adminApi.php', 'resendDeliveryOtp', {}, { id }).then(res => {
+    afApi('api/admin', 'resendDeliveryOtp', {}, { id }).then(res => {
         shToast(res.status === 'success' ? 'A new OTP has been emailed to the patient.' : res.message, res.status === 'success' ? 'success' : 'error');
         loadOrders();
     }).catch(() => shToast('Server connection error', 'error'));
@@ -686,7 +687,7 @@ async function orderPayment(id, action) {
         markRefunded: [`Have you sent the refund of ${afMoney(o.total)} to the patient?`, { yes: 'Yes, refund sent' }, 'Marked as refunded. The patient has been emailed.']
     }[action];
     if (!await shConfirm(ask[0], ask[1])) return;
-    afApi('adminApi.php', action, {}, { id }).then(res => {
+    afApi('api/admin', action, {}, { id }).then(res => {
         shToast(res.status === 'success' ? ask[2] : res.message, res.status === 'success' ? 'success' : 'error');
         loadOrders();
     });
@@ -697,7 +698,7 @@ async function cancelOrderAdmin(id) {
     if (!o) return;
     const reason = await shPrompt(`Cancel ${o.order_no}? The medicines go back into stock. Reason shown to the patient:`, 'Out of stock', { yes: 'Cancel order', no: 'Keep order' });
     if (reason === null) return;
-    afApi('adminApi.php', 'cancelOrder', {}, { id, reason }).then(res => {
+    afApi('api/admin', 'cancelOrder', {}, { id, reason }).then(res => {
         if (res.status !== 'success') shToast(res.message, 'error');
         loadOrders();
         loadMedicines();
@@ -708,11 +709,11 @@ async function cancelOrderAdmin(id) {
 // NOTIFICATIONS (email log)
 // =====================================================================
 function loadNotifications() {
-    afApi('adminApi.php', 'notifications').then(d => {
+    afApi('api/admin', 'notifications').then(d => {
         const tbody = document.getElementById('notif-body');
         if (d.status !== 'success') { tbody.innerHTML = `<tr><td colspan="5">${AF_NO_SESSION}</td></tr>`; return; }
         document.getElementById('notif-config').innerHTML = d.email_configured ? ''
-            : `<div class="feat-warn"><b>Not delivering yet:</b> the Gmail address and app password are not set in <code>settings.php</code>. Messages below marked "logged" were recorded but not actually sent.</div>`;
+            : `<div class="feat-warn"><b>Not delivering yet:</b> the Gmail address and app password are not set in the <code>.env</code> file (MAIL_GMAIL_ADDRESS, MAIL_GMAIL_APP_PASSWORD). Messages below marked "logged" were recorded but not actually sent.</div>`;
         tbody.innerHTML = d.notifications.length ? d.notifications.map(n => `
             <tr>
                 <td>${afEsc(n.created_at)}</td>
@@ -727,7 +728,7 @@ function loadNotifications() {
 // Mails that failed while the internet was down are sent again. Runs by itself every minute
 // (quietly) and from the "Retry failed emails" button.
 function retryEmails(quiet) {
-    afApi('adminApi.php', 'retryEmails').then(res => {
+    afApi('api/admin', 'retryEmails').then(res => {
         if (res.status !== 'success') { if (!quiet) shToast(res.message, 'error'); return; }
         if (!quiet) {
             shToast(res.sent ? `${res.sent} email(s) delivered.` + (res.waiting ? ` ${res.waiting} still waiting.` : '')
@@ -739,7 +740,7 @@ function retryEmails(quiet) {
 }
 
 function sendRemindersNow() {
-    afApi('adminApi.php', 'sendReminders').then(res => {
+    afApi('api/admin', 'sendReminders').then(res => {
         if (res.status !== 'success') return shToast(res.message, 'error');
         shNotify(`${res.processed} appointment reminder(s) processed.`);
         loadNotifications();
@@ -757,7 +758,7 @@ function openDoctorRecords(id) {
     document.getElementById('rec-body').innerHTML = '<tr><td class="empty" colspan="6">Loading...</td></tr>';
     document.getElementById('doctorRecordsModal').style.display = 'flex';
 
-    afApi('adminApi.php', 'doctorRecords', { id }).then(d => {
+    afApi('api/admin', 'doctorRecords', { id }).then(d => {
         if (d.status !== 'success') {
             document.getElementById('rec-body').innerHTML = `<tr><td colspan="6">${d.message === 'Doctor not found' ? 'Doctor not found.' : AF_NO_SESSION}</td></tr>`;
             return;

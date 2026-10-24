@@ -6,3 +6,10 @@ hospital_db.sql
 
 # Values to paste into Render > Environment - contains the Gmail app password, never commit
 render.env
+
+# Flask / MongoDB version: local settings with passwords, session key, test logins, Python caches
+.env
+.flask_secret
+.qa_credentials
+__pycache__/
+*.pyc

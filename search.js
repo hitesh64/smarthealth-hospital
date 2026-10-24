@@ -9,9 +9,11 @@ const SEARCH_PAGES = [
     { text: 'Medicine Store', sub: 'Order medicines from the hospital pharmacy', icon: 'fa-pills', keys: 'medicine pharmacy shop buy tablets syrup store', run: () => openStore('shop', '') },
     { text: 'My Cart', sub: 'Review your medicines and place the order', icon: 'fa-cart-shopping', keys: 'cart checkout place order pay upi', run: () => openStore('cart') },
     { text: 'My Medicine Orders', sub: 'Track, pay or cancel an order', icon: 'fa-box', keys: 'orders track delivery payment refund cancel upi', run: () => openStore('orders') },
+    { text: 'Lab Tests', sub: 'Blood tests, health packages, home sample collection', icon: 'fa-flask-vial', keys: 'lab test blood cbc sugar thyroid lipid vitamin urine report pathology checkup package ecg xray', run: () => goToView('lab') },
+    { text: 'My Lab Reports', sub: 'Lab bookings and reports', icon: 'fa-file-medical', keys: 'lab report result pathology', run: () => { goToView('lab'); labTab('my'); } },
     { text: 'My Appointments', sub: 'Booked appointments and token numbers', icon: 'fa-calendar-check', keys: 'bookings appointments token history cancel', run: () => goToView('bookings') },
     { text: 'Health Blog', sub: 'Hospital services and wellness tips', icon: 'fa-blog', keys: 'blog articles tips services facilities', run: () => goToView('blog') },
-    { text: 'Book Ambulance', sub: 'Emergency ambulance to your address', icon: 'fa-ambulance', keys: 'ambulance emergency sos accident', run: () => goToView('ambulance') }
+    { text: 'Book Ambulance', sub: 'Ambulance to your location, tracked live on the map', icon: 'fa-ambulance', keys: 'ambulance emergency sos accident', run: () => goToView('ambulance') }
 ];
 
 const search = { results: [], active: -1 };
@@ -180,7 +182,7 @@ function searchMove(step) {
     const loadMedicines = () => {
         if (asked || store.products.length) return;
         asked = true;
-        fetch('storeApi.php?action=products').then(r => r.json()).then(d => {
+        fetch('api/store?action=products').then(r => r.json()).then(d => {
             if (d.status === 'success' && !store.products.length) { store.products = d.products; if (input.value.trim()) searchRun(); }
         }).catch(() => { asked = false; });
     };

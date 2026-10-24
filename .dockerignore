@@ -1,8 +1,10 @@
 .git
 .claude
+.env
+.flask_secret
+.qa_credentials
 settings.php
 *.sql
-Dockerfile
-.dockerignore
-import_db.php
+*.php
 render.env
+__pycache__

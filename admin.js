@@ -7,7 +7,8 @@ const esc = shEsc; // from popups.js
 const PAGE_TITLES = {
     'booking-tab': 'Appointments', 'registered-users-tab': 'Patients', 'doctor-list-tab': 'Doctors',
     'ambulance-bookings-tab': 'Ambulance Bookings', 'sos-tab': 'SOS Alerts', 'medicine-tab': 'Medicine Stock',
-    'orders-tab': 'Medicine Orders', 'analytics-tab': 'Analytics', 'notifications-tab': 'Notifications'
+    'orders-tab': 'Medicine Orders', 'analytics-tab': 'Analytics', 'notifications-tab': 'Notifications',
+    'lab-tab': 'Lab Bookings', 'lab-tests-tab': 'Test Catalogue'
 };
 
 document.getElementById('current-date').innerText = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -97,6 +98,8 @@ function switchTab(tabId) {
     else if (tabId === 'registered-users-tab') loadRegisteredUsers();
     else if (tabId === 'doctor-list-tab') loadAddedDoctors();
     else if (tabId === 'ambulance-bookings-tab') loadAmbulanceBookings();
+    else if (tabId === 'lab-tab') loadLab();
+    else if (tabId === 'lab-tests-tab') loadLabTests();
     else if (typeof onFeatureTab === 'function') onFeatureTab(tabId);
 }
 
@@ -152,7 +155,7 @@ function handleRegister(event) {
 
     const btn = document.getElementById('reg-btn');
     btn.disabled = true;
-    fetch("adminRegister.php", { method: "POST", body: formData })
+    fetch("api/admin/register", { method: "POST", body: formData })
         .then(res => res.text())
         .then(data => {
             if (data.trim() === "success") {
@@ -183,7 +186,7 @@ function handleLogin(event) {
 
     const btn = document.getElementById('login-btn');
     btn.disabled = true;
-    fetch("adminLogin.php", { method: "POST", body: formData })
+    fetch("api/admin/login", { method: "POST", body: formData })
         .then(res => res.text())
         .then(data => {
             let res = null;
@@ -207,7 +210,7 @@ function handleLogout() {
     document.getElementById('auth-view').style.display = 'flex';
     document.getElementById('login-password').value = '';
     stopAdminFeatures();
-    fetch('adminApi.php?action=logout', { method: 'POST' });
+    fetch('api/admin?action=logout', { method: 'POST' });
 }
 
 // ---------------------------------------------------------------- appointments
@@ -222,7 +225,7 @@ function bookingState(status) {
 }
 
 function loadBookings() {
-    fetch("getBookings.php")
+    fetch("api/bookings")
         .then(res => res.json())
         .then(rows => {
             bookingsData = rows;
@@ -271,7 +274,7 @@ function renderBookings() {
 
 async function updateDocStatus(id, newStatus) {
     if (newStatus === 'Rejected' && !await shConfirm('Reject this appointment request? The patient will be informed by email.', { yes: 'Reject', danger: true })) return;
-    fetch(`updateBookingStatus.php?id=${id}&status=${newStatus}`)
+    fetch(`api/bookings/status?id=${id}&status=${newStatus}`)
         .then(res => res.text())
         .then(data => { shNotify(data); loadBookings(); })
         .catch(() => shToast('Could not reach the server.', 'error'));
@@ -279,7 +282,7 @@ async function updateDocStatus(id, newStatus) {
 
 async function deleteDocBooking(id) {
     if (!await shConfirm('Permanently delete this appointment record?', { yes: 'Delete', danger: true })) return;
-    fetch("deleteBooking.php?id=" + id)
+    fetch("api/bookings/delete?id=" + id)
         .then(res => res.text())
         .then(data => { shNotify(data); loadBookings(); })
         .catch(() => shToast('Could not reach the server.', 'error'));
@@ -289,7 +292,7 @@ async function deleteDocBooking(id) {
 let usersData = [];
 
 function loadRegisteredUsers() {
-    fetch("getUsers.php")
+    fetch("api/users")
         .then(res => res.json())
         .then(users => {
             usersData = users;
@@ -315,61 +318,162 @@ function renderUsers() {
 }
 
 // ---------------------------------------------------------------- ambulance bookings
-let ambData = [];
+// Requests come with a pickup point and a road route from the hospital. Dispatch picks a fleet
+// ambulance (the nearest free one unless chosen); the map shows every open request, its route and the fleet.
+let ambData = [], ambFleet = [], ambHospital = null, ambMap = null, ambLayer = null, ambFitKey = null;
+const AMB_BADGE = { Pending: 'danger', Dispatched: 'accepted', Arrived: 'pending', Completed: 'confirmed', Cancelled: 'manual' };
+const AMB_LABEL = { Pending: 'Awaiting dispatch', Dispatched: 'On the way', Arrived: 'At pickup', Completed: 'Completed', Cancelled: 'Cancelled' };
 
 function loadAmbulanceBookings() {
-    fetch("getAmbulance.php")
+    return fetch('api/ambulance')
         .then(res => res.json())
-        .then(rows => {
-            ambData = rows.slice().reverse(); // newest request first
-            const waiting = rows.filter(a => (a.status || 'Pending') !== 'Dispatched').length;
-            document.getElementById('kpi-ambulance').textContent = rows.length;
+        .then(d => {
+            if (d.status !== 'success') throw new Error(d.message);
+            ambData = d.requests || [];
+            ambFleet = d.fleet || [];
+            ambHospital = d.hospital;
+            const waiting = ambData.filter(a => a.status === 'Pending').length;
+            document.getElementById('kpi-ambulance').textContent = ambData.length;
             document.getElementById('kpi-ambulance-hint').textContent = waiting ? `${waiting} awaiting dispatch` : 'Total requests';
             renderAmbulance();
         })
         .catch(() => { document.getElementById('amb-bookings-table-body').innerHTML = emptyRow(6, 'fa-circle-exclamation', 'Could not load ambulance bookings.'); });
 }
 
+function ambMinutes(m) { return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+
 function renderAmbulance() {
-    const q = searchValue('amb-search');
-    const rows = ambData.filter(a => matches(q, a.patient_name, a.phone, a.address, a.emergency_type));
+    const q = searchValue('amb-search'), filter = document.getElementById('amb-filter').value;
+    const open = a => ['Pending', 'Dispatched', 'Arrived'].includes(a.status);
+    const rows = ambData.filter(a => (filter === 'open' ? open(a) : (!filter || a.status === filter))
+        && matches(q, a.patient_name, a.phone, a.address, a.emergency_type, a.ambulance && a.ambulance.vehicle_no));
+    const count = st => ambData.filter(a => a.status === st).length;
+    const free = ambFleet.filter(f => f.status === 'Available');
+    document.getElementById('amb-stats').innerHTML = [
+        ['Awaiting dispatch', count('Pending'), 'Need an ambulance now', 'fa-hourglass-half', count('Pending') ? 'red' : ''],
+        ['On the way', count('Dispatched'), 'Driving to the patient', 'fa-truck-medical', ''],
+        ['At pickup', count('Arrived'), 'Ambulance has arrived', 'fa-location-dot', ''],
+        ['Ambulances free', free.length, `of ${ambFleet.length} in the fleet`, 'fa-warehouse', free.length ? 'green' : 'red']
+    ].map(([label, value, hint, icon, tone]) => `<div class="ord-stat ${tone ? 'tone-' + tone : ''}"><span class="ord-stat-top"><span class="l">${label}</span><i class="fas ${icon}"></i></span><span class="v">${value}</span><span class="h">${hint}</span></div>`).join('');
+
     document.getElementById('amb-count').textContent = rows.length;
     document.getElementById('amb-bookings-table-body').innerHTML = rows.length ? rows.map(a => {
-        const sent = a.status === 'Dispatched';
+        const r = a.route_summary, eta = a.eta, amb = a.ambulance;
+        let actions = '';
+        if (a.status === 'Pending') {
+            actions = `<div class="feat-inline">
+                <select id="amb-pick-${a.id}" title="Ambulance to send">
+                    <option value="">Nearest free ambulance</option>
+                    ${free.map(f => `<option value="${f.id}">${esc(f.vehicle_no)} — ${esc(f.driver_name)}</option>`).join('')}
+                </select>
+                <button class="btn btn--sm btn--danger" onclick="dispatchAmbRequest(${+a.id})"><i class="fas fa-truck-medical"></i> Dispatch</button></div>`;
+        } else if (a.status === 'Dispatched') {
+            actions = `<button class="btn btn--sm" onclick="setAmbStatus(${+a.id}, 'Arrived')"><i class="fas fa-location-dot"></i> Arrived</button>`;
+        }
+        if (a.status === 'Dispatched' || a.status === 'Arrived') {
+            actions += `<button class="btn btn--sm btn--success" onclick="setAmbStatus(${+a.id}, 'Completed')"><i class="fas fa-circle-check"></i> Complete</button>`;
+        }
+        if (['Pending', 'Dispatched', 'Arrived'].includes(a.status)) {
+            actions += `<button class="btn btn--sm btn--outline" onclick="setAmbStatus(${+a.id}, 'Cancelled')">Cancel</button>`;
+        }
+        if (a.pickup_lat !== null) actions += `<button class="btn btn--sm btn--outline" onclick="focusAmbRequest(${+a.id})" title="Show on map"><i class="fas fa-map-location-dot"></i></button>`;
+        actions += `<button class="btn btn--sm btn--danger-soft" onclick="deleteAmbBooking(${+a.id})" title="Delete"><i class="fas fa-trash"></i></button>`;
         return `<tr>
-            <td class="cell-strong">${esc(a.patient_name || 'N/A')}</td>
-            <td>${esc(a.phone || '—')}</td>
-            <td>${esc(a.address || '—')}</td>
+            <td><span class="cell-strong">${esc(a.patient_name || 'N/A')}</span><br>${esc(a.phone || '—')}<br><small class="muted">#${+a.id} · ${esc(String(a.created_at || '').slice(0, 16))}</small></td>
+            <td>${esc(a.address || '—')}${a.pickup_lat !== null ? `<br><a href="https://www.google.com/maps?q=${a.pickup_lat},${a.pickup_lng}" target="_blank" rel="noopener"><i class="fas fa-location-dot"></i> ${(+a.pickup_lat).toFixed(5)}, ${(+a.pickup_lng).toFixed(5)}</a>` : '<br><b style="color: var(--red);">No map pin — call to confirm</b>'}</td>
+            <td>${r ? `<b>${r.km} km</b> · ${ambMinutes(r.minutes)}${r.source === 'estimate' ? ' <small>(approx.)</small>' : ''}` : '—'}
+                ${eta ? `<br><small>${eta.km_left} km left · ${eta.minutes_left} min · ${eta.live ? 'live GPS' : 'estimated'}</small>` : ''}
+                ${amb ? `<br><small><i class="fas fa-truck-medical"></i> ${esc(amb.vehicle_no)} — ${esc(amb.driver_name)}</small>` : ''}</td>
             <td>${esc(a.emergency_type || '—')}</td>
-            <td><span class="badge ${sent ? 'confirmed' : 'pending'}">${sent ? 'Dispatched' : 'Pending'}</span></td>
-            <td><div class="row-actions">
-                ${sent ? '' : `<button class="btn btn--sm" onclick="updateAmbStatus(${+a.id}, 'Dispatched')"><i class="fas fa-truck-medical"></i> Dispatch</button>`}
-                <button class="btn btn--sm btn--danger-soft" onclick="deleteAmbBooking(${+a.id})"><i class="fas fa-trash"></i> Delete</button>
-            </div></td>
+            <td><span class="badge ${AMB_BADGE[a.status] || 'pending'}">${AMB_LABEL[a.status] || esc(a.status)}</span></td>
+            <td><div class="row-actions">${actions}</div></td>
         </tr>`;
-    }).join('') : emptyRow(6, 'fa-truck-medical', ambData.length ? 'No requests match this search.' : 'No ambulance bookings found.');
+    }).join('') : emptyRow(6, 'fa-truck-medical', ambData.length ? 'No requests in this list.' : 'No ambulance bookings yet.');
+    renderAmbMap();
 }
 
-function updateAmbStatus(id, newStatus) {
-    fetch(`updateAmbulanceStatus.php?id=${id}&status=${newStatus}`)
-        .then(res => res.text())
-        .then(data => { shNotify(data); loadAmbulanceBookings(); })
-        .catch(() => shToast('Could not reach the server.', 'error'));
+function renderAmbMap() {
+    const el = document.getElementById('amb-admin-map');
+    if (typeof L === 'undefined' || !el || !el.offsetParent || !ambHospital) return;
+    if (!ambMap) {
+        ambMap = L.map(el).setView([ambHospital.lat, ambHospital.lng], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(ambMap);
+        ambLayer = L.layerGroup().addTo(ambMap);
+        setTimeout(() => ambMap.invalidateSize(), 200);
+    }
+    ambLayer.clearLayers();
+    const pin = (kind, icon) => L.divIcon({ className: '', html: `<div class="map-pin ${kind}"><i class="fas ${icon}"></i></div>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+    const points = [[ambHospital.lat, ambHospital.lng]];
+    L.marker(points[0], { icon: pin('hosp', 'fa-hospital') }).addTo(ambLayer).bindPopup(`<b>${esc(ambHospital.name)}</b><br>${esc(ambHospital.address)}`);
+    const active = ambData.filter(a => ['Pending', 'Dispatched', 'Arrived'].includes(a.status) && a.pickup_lat !== null);
+    active.forEach(a => {
+        if (a.route) L.polyline(a.route, { color: a.status === 'Pending' ? '#b3261e' : '#17539c', weight: 4, opacity: .8, dashArray: a.status === 'Pending' ? '8 8' : null }).addTo(ambLayer);
+        L.marker([a.pickup_lat, a.pickup_lng], { icon: pin('me', 'fa-person') }).addTo(ambLayer)
+            .bindPopup(`<b>#${a.id} ${esc(a.patient_name)}</b><br>${esc(a.emergency_type)}<br>${esc(AMB_LABEL[a.status])}`);
+        points.push([a.pickup_lat, a.pickup_lng]);
+    });
+    ambFleet.forEach(f => {
+        if (f.lat === null) return;
+        L.marker([+f.lat, +f.lng], { icon: pin('amb' + (f.status === 'Offline' ? ' off' : ''), 'fa-truck-medical'), zIndexOffset: 500 }).addTo(ambLayer)
+            .bindPopup(`${esc(f.vehicle_no)} — ${esc(f.status)}${f.live ? ' (live GPS)' : ''}`);
+    });
+    document.getElementById('amb-map-note').innerHTML = `${active.length} open request${active.length === 1 ? '' : 's'} on the map &middot; dashed = waiting, blue = ambulance on the way`;
+    const key = active.map(a => a.id + a.status).join(',');
+    if (key !== ambFitKey) {
+        if (points.length > 1) ambMap.fitBounds(points, { padding: [40, 40], maxZoom: 15 });
+        ambFitKey = key;
+    }
+}
+
+function focusAmbRequest(id) {
+    const a = ambData.find(x => x.id === id);
+    if (!a || !ambMap) return;
+    document.getElementById('amb-admin-map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (a.route) ambMap.fitBounds(a.route, { padding: [40, 40], maxZoom: 16 });
+    else ambMap.setView([a.pickup_lat, a.pickup_lng], 15);
+}
+
+function dispatchAmbRequest(id) {
+    const fd = new FormData();
+    fd.append('id', id);
+    fd.append('ambulance_id', document.getElementById('amb-pick-' + id).value);
+    fetch('api/ambulance/dispatch', { method: 'POST', body: fd }).then(r => r.json()).then(res => {
+        if (res.status !== 'success') shToast(res.message, 'error');
+        else shToast(`Ambulance ${res.vehicle_no} dispatched${res.route_summary ? ` — ${res.route_summary.km} km, about ${ambMinutes(res.route_summary.minutes)}` : ''}. The patient can track it live.`, 'success');
+        loadAmbulanceBookings();
+    }).catch(() => shToast('Could not reach the server.', 'error'));
+}
+
+async function setAmbStatus(id, status) {
+    if (status === 'Cancelled' && !await shConfirm('Cancel this ambulance request?', { yes: 'Cancel request', danger: true })) return;
+    const fd = new FormData();
+    fd.append('id', id);
+    fd.append('status', status);
+    fetch('api/ambulance/status', { method: 'POST', body: fd }).then(r => r.json()).then(res => {
+        if (res.status !== 'success') shToast(res.message, 'error');
+        loadAmbulanceBookings();
+    }).catch(() => shToast('Could not reach the server.', 'error'));
 }
 
 async function deleteAmbBooking(id) {
     if (!await shConfirm('Permanently delete this ambulance request?', { yes: 'Delete', danger: true })) return;
-    fetch("deleteAmbulance.php?id=" + id)
-        .then(res => res.text())
-        .then(data => { shNotify(data); loadAmbulanceBookings(); })
+    fetch("api/ambulance/delete?id=" + id)
+        .then(res => res.json())
+        .then(res => { shNotify(res.message || res.status); loadAmbulanceBookings(); })
         .catch(() => shToast('Could not reach the server.', 'error'));
 }
+
+// open requests and moving ambulances refresh by themselves while the page is open
+setInterval(() => {
+    const tab = document.getElementById('ambulance-bookings-tab');
+    if (tab && tab.classList.contains('active') && document.getElementById('dashboard-view').offsetParent !== null) loadAmbulanceBookings();
+}, 6000);
 
 // ---------------------------------------------------------------- doctors
 let doctorsData = [];
 
 function loadAddedDoctors() {
-    return fetch("getDoctors.php")
+    return fetch("api/doctors")
         .then(res => res.json())
         .then(doctors => {
             doctorsData = doctors;
@@ -402,7 +506,7 @@ function renderDoctors() {
 async function removeDoctor(id) {
     const doc = doctorsData.find(d => d.id == id);
     if (!await shConfirm(`Remove ${doc ? doc.doctor_name : 'this doctor'}? All of their appointments will be deleted as well.`, { yes: 'Remove', danger: true })) return;
-    fetch("deleteDoctor.php?id=" + id)
+    fetch("api/doctors/delete?id=" + id)
         .then(res => res.text())
         .then(data => { shNotify(data); loadAddedDoctors(); loadBookings(); })
         .catch(() => shToast('Could not reach the server.', 'error'));
@@ -421,7 +525,7 @@ function addDoctor(event) {
 
     const btn = document.getElementById('doc-save');
     btn.disabled = true;
-    fetch("addDoctor.php", { method: "POST", body: formData })
+    fetch("api/doctors/add", { method: "POST", body: formData })
         .then(r => r.text())
         .then(data => {
             shNotify(data);
@@ -484,7 +588,7 @@ function saveEditDoctor(e) {
 
     const btn = document.getElementById('edit-doc-save');
     btn.disabled = true;
-    fetch("updateDoctor.php", { method: "POST", body: formData })
+    fetch("api/doctors/update", { method: "POST", body: formData })
         .then(res => res.text())
         .then(data => {
             shNotify(data);

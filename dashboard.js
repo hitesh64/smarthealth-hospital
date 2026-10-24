@@ -117,7 +117,7 @@ function refreshDashboard() {
     if (!currentUser || !currentUser.email) return;
 
     const me = String(currentUser.email).toLowerCase().trim();
-    fetch('getBookings.php').then(r => r.json()).then(all => {
+    fetch('api/bookings').then(r => r.json()).then(all => {
         const mine = all.filter(b => b.user_id && String(b.user_id).toLowerCase().trim() === me);
         const today = dashToday();
         const upcoming = mine
@@ -426,10 +426,17 @@ const SVC_ITEMS = [
         img: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?w=1200&q=80'
     },
     {
+        title: 'Lab Tests', line: 'Sample collected at home', icon: 'fa-flask-vial', tone: '#0f766e',
+        kicker: 'Diagnostics', head: 'Blood tests and health packages, reports online',
+        text: 'Book CBC, sugar, thyroid, lipid and more. A collector comes home, and your report shows every value against its normal range.',
+        facts: ['Home sample collection', 'Report shared with your doctor'], cta: 'Book a lab test', run: () => switchView('lab'),
+        img: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=1200&q=80'
+    },
+    {
         title: 'Emergency Ambulance', line: 'Help at your location', icon: 'fa-truck-medical', tone: '#dc2626',
         kicker: 'Emergency', head: 'An ambulance sent to where you are',
-        text: 'Press SOS to share your live location with the hospital, or request an ambulance to an address.',
-        facts: ['Live location with SOS', '24×7 helpline'], cta: 'Request an ambulance', run: () => switchView('ambulance'),
+        text: 'Press SOS to share your live location, or book an ambulance from the map and follow it live on its road route from the hospital.',
+        facts: ['Live route tracking', '24×7 helpline'], cta: 'Request an ambulance', run: () => switchView('ambulance'),
         img: 'https://images.unsplash.com/photo-1551076805-e1869033e561?w=1200&q=80'
     },
     {
@@ -578,7 +585,7 @@ function navMoveGlider() {
 // =====================================================================
 const HEADER_PAGES = {
     'home': 'Dashboard', 'bookings': 'My Appointments', 'ai-checker': 'AI Symptom Check', 'store': 'Medicine Store',
-    'healthcard': 'My Health Card', 'ambulance': 'Book Ambulance', 'profile': 'My Profile', 'blog': 'Health Blog'
+    'healthcard': 'My Health Card', 'lab': 'Lab Tests', 'ambulance': 'Book Ambulance', 'profile': 'My Profile', 'blog': 'Health Blog'
 };
 
 // Called by switchView(): the header names the page you are on
