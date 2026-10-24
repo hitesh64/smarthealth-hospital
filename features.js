@@ -163,6 +163,7 @@ function sosStartTracking() {
 }
 
 function sosStopTracking() {
+    if (typeof guideStop === 'function') guideStop();
     clearInterval(sos.poll);
     if (sos.watch !== null) navigator.geolocation.clearWatch(sos.watch);
     Object.assign(sos, { token: null, poll: null, watch: null, map: null, meMarker: null, ambMarker: null, routeLayers: null, fitted: false, data: null,
@@ -182,6 +183,7 @@ function sosShowTracking() {
         <div id="sosPhoneBox"></div>
         <div class="sos-accuracy" id="sosAccuracy"></div>
         <div class="sos-map" id="sosMap"></div>
+        <div class="sos-guide" id="sosGuide"></div>
         <div class="sos-actions" id="sosActions"></div>
         <div class="sos-nearby" id="sosNearby"></div>`);
     sos.nearbyAt = null;
@@ -247,6 +249,7 @@ function sosRender(data) {
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'rt-tiles', attribution: '&copy; OpenStreetMap contributors' }).addTo(sos.map);
         setTimeout(() => sos.map && sos.map.invalidateSize(), 150);
         L.marker([hospital.lat, hospital.lng], { icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11], html: '<div class="rt-start"><i></i><span>Hospital</span></div>' }), zIndexOffset: 500 }).addTo(sos.map).bindPopup(shEsc(hospital.name));
+        if (typeof guideRedraw === 'function' && guide.target) setTimeout(guideRedraw, 200);
     }
     // road route from the ambulance's start to the caller: grey where it has driven, red still to go
     if (data.route && typeof amDrawRoute === 'function') {
@@ -267,7 +270,7 @@ function sosRender(data) {
                     .finally(() => { sos.dragging = false; sosRefresh(); });
             });
         } else if (!sos.dragging) {
-            sos.meMarker.setLatLng(p);
+            sos.meMarker.setLatLng(typeof guide !== 'undefined' && guide.pos && guide.target ? guide.pos : p);
         }
         points.push(p);
     }
@@ -334,7 +337,7 @@ function sosDrawNearby(list, lat, lng) {
         return;
     }
     box.innerHTML = `<div class="sos-nearby-head"><b><i class="fas fa-hospital"></i> Nearby hospitals</b><span>From Google Maps · nearest first</span></div>
-        ${list.map((h, i) => `<div class="sos-hosp">
+        ${list.map((h, i) => `<div class="sos-hosp ${typeof guide !== 'undefined' && guide.target && guide.target.name === h.name ? 'is-active' : ''}" data-name="${shEsc(h.name)}">
             <span class="sos-hosp-n">${i + 1}</span>
             <div class="sos-hosp-main">
                 <b>${shEsc(h.name)}</b>
@@ -344,7 +347,7 @@ function sosDrawNearby(list, lat, lng) {
             </div>
             <div class="sos-hosp-go">
                 ${h.phone ? `<a href="tel:${shEsc(h.phone.replace(/[^+\d]/g, ''))}" title="Call ${shEsc(h.name)}"><i class="fas fa-phone"></i> Call</a>` : ''}
-                <a href="${shEsc(h.directions)}" target="_blank" rel="noopener" title="Directions in Google Maps"><i class="fas fa-diamond-turn-right"></i> Route</a>
+                <button type="button" onclick="sosRouteTo(${i})" title="Show the road route and guide me by voice"><i class="fas fa-diamond-turn-right"></i> Route</button>
             </div>
         </div>`).join('')}`;
 
@@ -355,7 +358,7 @@ function sosDrawNearby(list, lat, lng) {
         icon: L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="sos-h-pin">${i + 1}</div>` })
     }).bindPopup(`<b>${shEsc(h.name)}</b><br>${h.km} km${h.phone ? '<br>' + shEsc(h.phone) : ''}`))).addTo(sos.map);
     // once, while no ambulance is on its way: show the caller with the three nearest hospitals
-    if (!sos.nearbyFitted && !(sos.data && sos.data.ambulance)) {
+    if (!sos.nearbyFitted && !(sos.data && sos.data.ambulance) && !(typeof guide !== 'undefined' && guide.target)) {
         sos.nearbyFitted = true;
         const frame = [[lat, lng], ...list.slice(0, 3).map(h => [h.lat, h.lng])];
         // after the panel has its final size, otherwise Leaflet frames the wrong area

@@ -90,7 +90,7 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID")
 
 # --- Hospital: name, phone and its fixed location in Mumbai (map centre, ambulance base, route start) ---
 HOSPITAL_NAME = env("HOSPITAL_NAME", "SmartHealth Hospital")
-HOSPITAL_PHONE = env("HOSPITAL_PHONE", "+91 1800-123-4567")
+HOSPITAL_PHONE = env("HOSPITAL_PHONE", "+91 75070 41642")
 HOSPITAL_ADDRESS = env("HOSPITAL_ADDRESS", "Cross Road B, MIDC, Andheri East, Mumbai, Maharashtra 400096")
 HOSPITAL_LAT = env_float("HOSPITAL_LAT", 19.11499)
 HOSPITAL_LNG = env_float("HOSPITAL_LNG", 72.86817)

@@ -309,3 +309,37 @@ def nearby_hospitals(lat, lng, limit=8):
     rows = [{**p, "km": round(distance_km(lat, lng, p["lat"], p["lng"]), 1)} for p in places]
     rows.sort(key=lambda p: p["km"])
     return rows[:limit]
+
+
+def guide_route(a_lat, a_lng, b_lat, b_lng):
+    """Driving route with turn-by-turn steps for spoken guidance (SOS > nearby hospital > Route).
+    Each step is where something happens (depart, turn, roundabout, arrive), the road it leads onto
+    and the distance driven on that road afterwards."""
+    key = f"guide:{a_lat:.4f},{a_lng:.4f};{b_lat:.5f},{b_lng:.5f}"
+    cached = _cache_get(key)
+    if cached:
+        return cached
+    try:
+        res = requests.get(f"{config.OSRM_URL}/route/v1/driving/{a_lng:.6f},{a_lat:.6f};{b_lng:.6f},{b_lat:.6f}",
+                           params={"overview": "full", "geometries": "geojson", "steps": "true"}, timeout=10,
+                           headers={"User-Agent": USER_AGENT})
+        data = res.json()
+        if res.status_code != 200 or data.get("code") != "Ok" or not data.get("routes"):
+            raise ValueError(data.get("message") or data.get("code"))
+        r = data["routes"][0]
+        coords = [[round(lat, 6), round(lng, 6)] for lng, lat in r["geometry"]["coordinates"]]
+        coords = [[a_lat, a_lng]] + coords + [[b_lat, b_lng]]
+        steps = []
+        for s in r["legs"][0]["steps"]:
+            m = s["maneuver"]
+            steps.append({"type": m.get("type"), "modifier": m.get("modifier") or "", "exit": m.get("exit"),
+                          "name": s.get("name") or s.get("ref") or "", "lat": m["location"][1], "lng": m["location"][0],
+                          "distance": round(s.get("distance") or 0)})
+        route = {"coords": _thin(coords, 900), "distance_m": round(r["distance"]),
+                 "duration_s": round(r["duration"] * config.ROUTE_TRAFFIC_FACTOR), "steps": steps, "source": "road"}
+        _cache_put(key, route)
+        return route
+    except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
+        print(f"[routing] guided route failed, using a straight line: {exc}")
+        line = straight_route(a_lat, a_lng, b_lat, b_lng)
+        return {**line, "steps": [], "source": "straight"}

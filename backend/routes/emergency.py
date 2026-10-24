@@ -12,8 +12,8 @@ from flask import Blueprint, jsonify, request, session
 from .. import config
 from ..db import db, next_id, now, out
 from ..mail import send_email
-from ..routing import (advance_simulation, gps_is_fresh, hospital, locate_address, nearby_hospitals, park_at_hospital, plan_route,
-                       progress, reverse_place, road_route, route_summary, search_places)
+from ..routing import (advance_simulation, gps_is_fresh, guide_route, hospital, locate_address, nearby_hospitals, park_at_hospital,
+                       plan_route, progress, reverse_place, road_route, route_summary, search_places)
 from ..utils import (admin_can, arg, background, distance_km, fail, new_token, ok, post, require_perm, to_float, to_int,
                      too_soon, valid_coords)
 
@@ -395,6 +395,25 @@ def sos_api():
             return ok(hospitals=[], enabled=bool(config.SERPAPI_KEY), need_location=True)
         rows = nearby_hospitals(a["lat"], a["lng"])
         return ok(hospitals=rows or [], enabled=rows is not None)
+
+    if action == "routeTo":
+        # road route with turn-by-turn steps from the caller to a hospital they picked from the list.
+        # "from" is the phone's newest GPS fix while it is being guided; otherwise the alert's location.
+        a = db.sos_alerts.find_one({"token": arg("token"), "status": {"$in": OPEN_SOS}})
+        if not a:
+            fail("Alert not found", 404)
+        to_lat, to_lng = to_float(arg("lat")), to_float(arg("lng"))
+        from_lat, from_lng = to_float(arg("from_lat")), to_float(arg("from_lng"))
+        if not valid_coords(from_lat, from_lng):
+            from_lat, from_lng = a.get("lat"), a.get("lng")
+        if not valid_coords(from_lat, from_lng):
+            fail("Your location is not known yet. Allow location access or drag the pin to where you are.", 409)
+        if not valid_coords(to_lat, to_lng) or distance_km(from_lat, from_lng, to_lat, to_lng) > 80:
+            fail("This hospital is too far away for a road route.", 400)
+        if too_soon("sos_route", 2):
+            fail("Please wait a moment.", 429)
+        route = guide_route(from_lat, from_lng, to_lat, to_lng)
+        return ok(route=route, summary=route_summary(route), start=[from_lat, from_lng])
 
     if action == "updateLocation":
         lat, lng, token = coord("lat"), coord("lng"), post("token")

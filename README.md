@@ -97,6 +97,10 @@ py -3.12 scripts/send_reminders.py
   with distance, rating, open hours, a call button and Google Maps directions. Results are cached for a
   week per ~1 km square because the free SerpApi plan has 250 searches a month; only an open SOS alert
   can ask, so the searches cannot be used up from outside.
+* Route on a nearby hospital draws the road route (OSRM) from the caller to it on the SOS map and
+  speaks turn-by-turn directions in Hindi or English (the phone's speech voices; English when the
+  device has no Hindi voice). It follows the phone's GPS, announces each turn before it, makes a new
+  route when the caller leaves it and says when they have arrived. A Google Maps link is there too.
 
 * The hospital's fixed point is `HOSPITAL_LAT` / `HOSPITAL_LNG` (default: Cross Road B, MIDC,
   Andheri East, Mumbai 400096).
