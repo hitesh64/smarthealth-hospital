@@ -246,6 +246,7 @@ function handleLogin(event) {
             try { res = JSON.parse(data); } catch (e) { /* plain-text reply: wrong email / password */ }
             if (res && res.status === "success") {
                 enterDashboard(res);
+                showDbWarning(res.db_warning);
             } else {
                 errorDiv.innerText = (res && res.message) || data.replace(/<[^>]*>/g, ' ').trim() || 'Sign-in failed.';
                 errorDiv.style.display = 'block';
@@ -256,6 +257,16 @@ function handleLogin(event) {
             errorDiv.style.display = 'block';
         })
         .finally(() => { btn.disabled = false; });
+}
+
+// Red bar while the server's database is wiped on every restart (MongoDB inside the Render container)
+function showDbWarning(text) {
+    document.getElementById('db-warning')?.remove();
+    if (!text) return;
+    document.body.insertAdjacentHTML('beforeend', `<div id="db-warning" role="alert" style="position:fixed;left:0;right:0;bottom:0;z-index:9999;
+        display:flex;gap:12px;align-items:center;padding:10px 16px;background:#b91c1c;color:#fff;font:600 13px/1.45 sans-serif;">
+        <i class="fas fa-triangle-exclamation"></i><span style="flex:1;">${text.replace(/[<>&]/g, '')}</span>
+        <button onclick="this.parentElement.remove()" style="border:0;background:rgba(255,255,255,.2);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;">Hide</button></div>`);
 }
 
 function handleLogout() {

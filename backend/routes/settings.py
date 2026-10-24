@@ -41,11 +41,15 @@ def ensure_roles():
 
 
 def ensure_default_admin():
-    """An empty database (e.g. a new hosted server) gets its first Super Admin from ADMIN_EMAIL /
-    ADMIN_PASSWORD, so somebody can sign in to the admin panel. Nothing happens once any staff
-    login exists."""
+    """The Super Admin from ADMIN_EMAIL / ADMIN_PASSWORD is created whenever that email has no staff
+    login (an empty database on a new or wiped server included), so the admin panel can always be
+    signed in to. An existing account is left as it is - its password is never reset from here."""
     from .. import config
-    if db.admins.count_documents({}) or not config.ADMIN_EMAIL or len(config.ADMIN_PASSWORD) < 8:
+    if not config.ADMIN_EMAIL or len(config.ADMIN_PASSWORD) < 8:
+        if config.ADMIN_EMAIL:
+            print("[startup] ADMIN_PASSWORD must be at least 8 characters - the admin was not created")
+        return
+    if db.admins.find_one({"email": norm_email(config.ADMIN_EMAIL)}, {"_id": 1}):
         return
     db.admins.insert_one({"_id": next_id("admins"), "name": config.ADMIN_NAME[:100], "email": norm_email(config.ADMIN_EMAIL),
                           "password": hash_pw(config.ADMIN_PASSWORD), "role_id": super_role_id(), "active": True,

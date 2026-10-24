@@ -31,13 +31,13 @@ def safe_uri():
 
 
 def setup_database():
-    """Indexes and the starting data (roles, lab tests, ambulances). Runs at start-up and, if the
+    """Indexes and the starting data (roles, admin, ambulances). Runs at start-up and, if the
     database was not reachable then, again on a later request, so the site heals itself once
     MONGO_URI is right. Safe when several server workers run it at the same time."""
     from .routes.emergency import ensure_fleet
-    from .routes.lab import seed_tests
     from .routes.settings import ensure_default_admin, ensure_roles
-    for step in (ensure_indexes, ensure_roles, ensure_default_admin, seed_tests, ensure_fleet):
+    # lab tests are not added here: the lab enters its own in Admin > Test Catalogue
+    for step in (ensure_indexes, ensure_roles, ensure_default_admin, ensure_fleet):
         try:
             step()
         except DuplicateKeyError:
@@ -84,7 +84,10 @@ def create_app():
             db.command("ping")
             try_setup()
             counts = {c: db[c].estimated_document_count() for c in ("admins", "users", "doctors", "lab_tests", "roles")}
+            temporary = config.database_is_temporary()
             return jsonify({"status": "ok", "database": "connected", "mongo": safe_uri(), "db_name": config.MONGO_DB,
+                            "storage": "temporary - wiped on restart" if temporary else "permanent",
+                            **({"warning": config.TEMPORARY_DB_WARNING} if temporary else {}),
                             "setup_done": _setup["done"], "documents": counts})
         except Exception as exc:
             from .db import INIT_ERROR

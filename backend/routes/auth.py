@@ -151,6 +151,11 @@ def admin_login():
     see afterwards depends on the sections of their role."""
     row = db.admins.find_one({"email": norm_email(post("email"))})
     if not row:
+        if not db.admins.count_documents({}):
+            # nobody at all: the database is new or was wiped (see /api/health)
+            return text("No staff account exists on this server - its database is empty (new or reset). "
+                        + (config.TEMPORARY_DB_WARNING + " " if config.database_is_temporary() else "")
+                        + "Set ADMIN_EMAIL and ADMIN_PASSWORD (8+ characters) in the server settings and restart it.")
         return text("Admin not found!")
     if not check_pw(post("password"), row.get("password")):
         return text("Incorrect Password!")
@@ -160,7 +165,8 @@ def admin_login():
     db.admins.update_one({"_id": row["_id"]}, {"$set": {"last_login": now()}})
     a = current_admin()
     return jsonify({"status": "success", "name": a["name"], "email": a["email"], "role": a["role"],
-                    "super": a["super"], "permissions": a["perms"], "tabs": tabs_for(a["perms"])})
+                    "super": a["super"], "permissions": a["perms"], "tabs": tabs_for(a["perms"]),
+                    "db_warning": config.TEMPORARY_DB_WARNING if config.database_is_temporary() else ""})
 
 
 @bp.post("/api/admin/register")

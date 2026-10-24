@@ -365,7 +365,9 @@ function loadLabTests() {
         if (d.status !== 'success') { document.getElementById('lab-tests-body').innerHTML = `<tr><td colspan="7">${AF_NO_SESSION}</td></tr>`; return; }
         labTests = d.tests;
         labTests.categories = d.categories;
-        document.getElementById('lab-tests-body').innerHTML = labTests.map(t => `
+        document.getElementById('lab-tests-body').innerHTML = !labTests.length
+            ? '<tr><td colspan="7" class="empty">No tests yet. Press "Add test" to enter the tests your lab offers - patients can book them under Lab Tests.</td></tr>'
+            : labTests.map(t => `
             <tr class="${t.active ? '' : 'is-off'}">
                 <td><span class="cell-strong">${afEsc(t.name)}</span><br><small>${afEsc(t.code)} · ${t.is_package ? `${t.includes.length} tests` : `${t.parameter_count} parameter${t.parameter_count === 1 ? '' : 's'}`}</small></td>
                 <td>${afEsc(t.category)}</td>
@@ -373,8 +375,19 @@ function loadLabTests() {
                 <td>${afMoney(t.price)}${t.worth ? `<br><small><s>${afMoney(t.worth)}</s></small>` : ''}</td>
                 <td>${t.tat_hours} h</td>
                 <td><label class="med-check"><input type="checkbox" ${t.active ? 'checked' : ''} onchange="toggleLabTest(${t.id}, this.checked)"> ${t.active ? 'Yes' : 'Hidden'}</label></td>
-                <td><button class="btn btn--sm btn--outline" onclick="openLabTest(${t.id})"><i class="fas fa-pen"></i> Edit</button></td>
+                <td style="white-space: nowrap;"><button class="btn btn--sm btn--outline" onclick="openLabTest(${t.id})"><i class="fas fa-pen"></i> Edit</button>
+                    <button class="btn btn--sm btn--danger-soft" onclick="deleteLabTest(${t.id})" title="Delete"><i class="fas fa-trash"></i></button></td>
             </tr>`).join('');
+    });
+}
+
+async function deleteLabTest(id) {
+    const t = labTests.find(x => x.id === id);
+    if (!t || !await shConfirm(`Delete ${t.name} from the catalogue? Patients can no longer book it. Old bookings and reports stay as they are.`,
+        { yes: 'Delete', danger: true })) return;
+    labPost('deleteTest', { id }).then(res => {
+        shToast(res.status === 'success' ? `${t.name} deleted.` : res.message, res.status === 'success' ? 'success' : 'error');
+        loadLabTests();
     });
 }
 

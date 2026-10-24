@@ -137,7 +137,9 @@ function lbDrawGrid() {
                     : `<button type="button" class="lb-add" onclick="lbToggle('${t.code}')">${added ? '<i class="fas fa-check"></i>Added' : '<i class="fas fa-plus"></i>Add'}</button>`}
             </div>
         </article>`;
-    }).join('') : '<div class="ap-empty" style="grid-column: 1 / -1;"><span class="ap-empty-art"><i class="fas fa-flask"></i></span><b>No test found</b>Try another word or category.</div>';
+    }).join('') : (lab.tests.length
+        ? '<div class="ap-empty" style="grid-column: 1 / -1;"><span class="ap-empty-art"><i class="fas fa-flask"></i></span><b>No test found</b>Try another word or category.</div>'
+        : `<div class="ap-empty" style="grid-column: 1 / -1;"><span class="ap-empty-art"><i class="fas fa-flask"></i></span><b>Lab tests will be listed here soon</b>For a test today, please call ${shEsc((lab.cfg.lab || {}).phone || 'the hospital')}.</div>`);
 }
 
 function lbToggle(code) {

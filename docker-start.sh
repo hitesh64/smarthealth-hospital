@@ -13,6 +13,10 @@ case "$URI" in
                --wiredTigerCacheSizeGB 0.25 --quiet --fork --logpath /tmp/mongod.log \
             || { echo "[start] MongoDB did not start:"; tail -n 40 /tmp/mongod.log; exit 1; }
         export MONGO_URI="mongodb://127.0.0.1:27017/"
+        if ! mountpoint -q "$MONGO_DATA_DIR" && ! mountpoint -q "$(dirname "$MONGO_DATA_DIR")"; then
+            echo "[start] WARNING: $MONGO_DATA_DIR is not a persistent disk. ALL DATA (admins, patients, orders) IS LOST"
+            echo "[start] WARNING: on every restart, redeploy and sleep. Set MONGO_URI to a MongoDB Atlas link to keep it."
+        fi
         ;;
     *)
         echo "[start] using the external MongoDB from MONGO_URI"

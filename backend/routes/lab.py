@@ -14,7 +14,7 @@ from pymongo import ReturnDocument
 
 from .. import config, payments
 from ..db import db, next_id, now, out
-from ..lab_catalog import CATEGORY_ORDER, TESTS, fill_calculated, flag_for, fmt_num, range_for, ref_text
+from ..lab_catalog import CATEGORY_ORDER, fill_calculated, flag_for, fmt_num, range_for, ref_text
 from ..mail import send_email
 from ..permissions import LAB_ADMIN_ACTIONS
 from ..utils import (arg, background, fail, nice_date, ok, post, require_admin, require_perm, require_user, slot_datetime,
@@ -27,17 +27,6 @@ HOME_SLOTS = ["07:00 AM", "08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "05:00
 LAB_SLOTS = ["08:00 AM", "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM",
              "05:00 PM", "06:00 PM", "07:00 PM"]
 BOOK_DAYS_AHEAD = 14
-
-
-def seed_tests():
-    """Adds the standard tests that are not in the catalogue yet. Tests already there (perhaps
-    edited by the admin) are left as they are."""
-    have = {t["code"] for t in db.lab_tests.find({}, {"code": 1})}
-    for t in TESTS:
-        if t["code"] not in have:
-            doc = {"_id": next_id("lab_tests"), "active": True, "includes": [], "parameters": [], "tat_hours": 24,
-                   "fasting_hours": 0, "home": True, "sample": "", "preparation": "", **t, "created_at": now()}
-            db.lab_tests.insert_one(doc)
 
 
 def catalogue(active_only=True):
@@ -536,6 +525,17 @@ def lab_admin():
             if db.lab_tests.find_one({"code": code}):
                 fail("A test with this code already exists.")
             db.lab_tests.insert_one({"_id": next_id("lab_tests"), "code": code, "active": True, "includes": [], **fields, "created_at": now()})
+        return ok()
+
+    if action == "deleteTest":
+        # bookings keep their own copy of the test, so old bookings and reports are not affected
+        t = db.lab_tests.find_one({"_id": to_int(post("id"))})
+        if not t:
+            fail("Test not found", 404)
+        pkgs = [p["name"] for p in db.lab_tests.find({"includes": t["code"]}, {"name": 1})]
+        if pkgs:
+            fail(f"{t['name']} is part of the package {', '.join(pkgs)}. Remove it from the package (or delete the package) first.", 409)
+        db.lab_tests.delete_one({"_id": t["_id"]})
         return ok()
 
     if action == "toggleTest":

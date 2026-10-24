@@ -46,7 +46,8 @@ ADMIN_ACTIONS = {
 }
 
 LAB_ADMIN_ACTIONS = {"list": "lab", "advance": "lab", "saveResults": "lab", "cancel": "lab",
-                     "tests": "lab_catalogue", "saveTest": "lab_catalogue", "toggleTest": "lab_catalogue"}
+                     "tests": "lab_catalogue", "saveTest": "lab_catalogue", "toggleTest": "lab_catalogue",
+                     "deleteTest": "lab_catalogue"}
 
 
 def tabs_for(perms):

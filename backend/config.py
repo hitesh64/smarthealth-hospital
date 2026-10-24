@@ -38,6 +38,21 @@ def env_float(key, default):
 MONGO_URI = env("MONGO_URI", "mongodb://127.0.0.1:27017")
 MONGO_DB = env("MONGO_DB", "hospital_db")
 
+
+def database_is_temporary():
+    """True on a host such as Render when MongoDB runs inside the container without a persistent
+    disk: everything (admins, patients, orders) is then wiped on every restart, redeploy or sleep."""
+    local = any(h in MONGO_URI for h in ("localhost", "127.0.0.1"))
+    hosted = bool(os.environ.get("RENDER")) or Path("/.dockerenv").exists()
+    data_dir = Path(env("MONGO_DATA_DIR", "/data/db"))
+    on_disk = any(os.path.ismount(p) for p in (data_dir, data_dir.parent))
+    return local and hosted and not on_disk
+
+
+TEMPORARY_DB_WARNING = ("This server keeps its database inside the container. Render wipes it on every restart, "
+                        "redeploy and sleep, so all admins, patients and orders disappear. Set MONGO_URI to a "
+                        "MongoDB Atlas link in Render > Environment to keep the data permanently.")
+
 # --- Flask session cookie. A fixed key keeps patients logged in across restarts. ---
 def _secret_key():
     key = env("SECRET_KEY")
@@ -56,10 +71,13 @@ def _secret_key():
 
 SECRET_KEY = _secret_key()
 
-# --- First Super Admin: created only while the database has no staff login at all
-# (useful on a host whose database starts empty). Leave empty to create it from the admin page.
-ADMIN_EMAIL = env("ADMIN_EMAIL")
-ADMIN_PASSWORD = env("ADMIN_PASSWORD")
+# --- Super Admin: created at start-up whenever this email has no staff login (also after the
+# database was wiped). An existing account keeps its password.
+# Fixed admin login, written in the code as the hospital asked. ADMIN_EMAIL / ADMIN_PASSWORD in the
+# server settings still take precedence. NOTE: the GitHub repository is public, so anyone who reads
+# this file knows this login - make the repository private or change the password after signing in.
+ADMIN_EMAIL = env("ADMIN_EMAIL", "admin@gmail.com")
+ADMIN_PASSWORD = env("ADMIN_PASSWORD", "admin123")
 ADMIN_NAME = env("ADMIN_NAME", "Administrator")
 
 # --- Email via Gmail SMTP (empty = messages are only logged in Admin > Notifications) ---
