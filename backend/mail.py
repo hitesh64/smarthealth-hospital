@@ -8,6 +8,7 @@ import socket
 import ssl
 import time
 from datetime import timedelta
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
 
@@ -22,18 +23,24 @@ def mail_configured():
     return bool(config.MAIL_GMAIL_ADDRESS and config.MAIL_GMAIL_APP_PASSWORD)
 
 
-def log_notification(channel, recipient, message, status, detail="", subject=None, attempts=1):
+def log_notification(channel, recipient, message, status, detail="", subject=None, attempts=1, html=None):
     db.notifications.insert_one({
         "_id": next_id("notifications"), "channel": channel, "recipient": recipient, "subject": subject,
-        "message": message, "status": status, "detail": (detail or "")[:255], "attempts": attempts,
+        "message": message, "html": html, "status": status, "detail": (detail or "")[:255], "attempts": attempts,
         "created_at": now(),
     })
 
 
-def smtp_send(to, subject, message):
+def smtp_send(to, subject, message, html=None):
     """One delivery attempt. Returns '' on success, otherwise the error text.
-    Errors starting with 'Connect failed' are network problems and worth retrying."""
-    msg = MIMEText(message, "plain", "utf-8")
+    Errors starting with 'Connect failed' are network problems and worth retrying.
+    With `html` the mail carries both: mail apps show the designed version, others the plain text."""
+    if html:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(message, "plain", "utf-8"))
+        msg.attach(MIMEText(html, "html", "utf-8"))
+    else:
+        msg = MIMEText(message, "plain", "utf-8")
     msg["Subject"] = subject.replace("\r", " ").replace("\n", " ")
     msg["From"] = formataddr((config.MAIL_FROM_NAME, config.MAIL_GMAIL_ADDRESS))
     msg["To"] = to
@@ -60,7 +67,7 @@ def smtp_send(to, subject, message):
             pass
 
 
-def send_email(to, subject, message, secret=""):
+def send_email(to, subject, message, secret="", html=None):
     """Sends (or, without Gmail settings, only logs) one mail.
     `secret` (e.g. a delivery OTP) is hidden in the log the admin can read, and a mail carrying it is
     never re-sent by retry_failed_emails (the admin issues a fresh OTP instead)."""
@@ -69,19 +76,20 @@ def send_email(to, subject, message, secret=""):
     logged = message if not secret else message.replace(secret, "******")
 
     if not mail_configured():
-        log_notification("email", to, logged, "logged", "Gmail SMTP not configured in .env", subject if not secret else None)
+        log_notification("email", to, logged, "logged", "Gmail SMTP not configured in .env", subject if not secret else None,
+                         html=None if secret else html)
         return False
 
     error, attempt = "", 1
     for attempt in range(1, 4):
-        error = smtp_send(to, subject, message)
+        error = smtp_send(to, subject, message, html)
         # a wrong password / rejected address will not fix itself, so only network errors are retried
         if error == "" or not error.startswith("Connect failed"):
             break
         if attempt < 3:
             time.sleep(3)
     log_notification("email", to, logged, "sent" if error == "" else "failed", error,
-                     None if (secret and error) else subject, min(attempt, 3))
+                     None if (secret and error) else subject, min(attempt, 3), None if secret else html)
     # the connection works right now, so also deliver anything that failed earlier
     if error == "":
         retry_failed_emails(5)
@@ -108,7 +116,7 @@ def retry_failed_emails(limit=10):
             "created_at": {"$gt": now() - timedelta(hours=24)},
         }).sort("_id", 1).limit(int(limit))
         for n in list(failed):
-            error = smtp_send(n["recipient"], n["subject"], n["message"])
+            error = smtp_send(n["recipient"], n["subject"], n["message"], n.get("html"))
             # still offline: stop for now, and do not count it as an attempt
             if error.startswith("Connect failed"):
                 break

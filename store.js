@@ -8,7 +8,8 @@ const store = {
     cart: {},        // { medicineId: qty }
     form: null,      // checkout form values, kept while the cart is redrawn
     orders: null, poll: null, placing: false,
-    upi: false, payMinutes: 30, payTimer: null   // UPI is offered only when the hospital has set its UPI ID
+    upi: false, payMinutes: 30, payTimer: null,  // UPI is offered only when the hospital has set its UPI ID
+    online: false, testMode: false               // online payment (Razorpay) when its keys are set
 };
 try { store.cart = JSON.parse(localStorage.getItem(ST_CART_KEY)) || {}; } catch (e) { store.cart = {}; }
 
@@ -67,6 +68,8 @@ function loadStore() {
         store.freeAbove = +d.free_delivery_above;
         store.maxQty = +d.max_qty;
         store.upi = !!d.upi_enabled;
+        store.online = !!d.online_enabled;
+        store.testMode = !!d.test_mode;
         store.payMinutes = +d.upi_pay_minutes;
         stSyncCart();
         stRender();
@@ -280,7 +283,7 @@ function stRenderCart() {
         try { Object.assign(store.form, JSON.parse(localStorage.getItem(stDetailsKey())) || {}); } catch (e) {}
         if (stDetailsError()) store.form.saved = false;
     }
-    const f = store.form, pickup = f.delivery_type === 'Pickup', upi = stPayMethod() === 'UPI';
+    const f = store.form, pickup = f.delivery_type === 'Pickup', method = stPayMethod(), upi = method === 'UPI', online = method === 'Online';
     const subtotal = lines.reduce((s, l) => s + l.total, 0);
     const fee = (pickup || subtotal >= store.freeAbove) ? 0 : store.fee;
 
@@ -320,18 +323,20 @@ function stRenderCart() {
                 <div><span>${pickup ? 'Pickup' : 'Delivery'}</span><b>${fee ? stMoney(fee) : 'Free'}</b></div>
                 ${!pickup && fee ? `<p class="st-hint">Add ${stMoney(store.freeAbove - subtotal)} more for free delivery.</p>` : ''}
                 <div class="st-total"><span>Total to pay</span><b>${stMoney(subtotal + fee)}</b></div>
-                ${store.upi ? `
+                ${store.upi || store.online ? `
                 <h4 class="st-h" style="margin-top: 1.4rem;"><span class="st-num">4</span> How do you want to pay?</h4>
                 <section class="st-choice">
+                    ${store.online ? payMethodCard(online, "stSetPay('Online')", store.testMode) : `
                     <label class="${upi ? 'active' : ''}"><input type="radio" name="stPay" ${upi ? 'checked' : ''} onchange="stSetPay('UPI')">
-                        <i class="fas fa-qrcode"></i> <span><b>Pay online by UPI</b><small>Google Pay · PhonePe · Paytm · BHIM — pay now by QR</small></span></label>
-                    <label class="${upi ? '' : 'active'}"><input type="radio" name="stPay" ${upi ? '' : 'checked'} onchange="stSetPay('COD')">
+                        <i class="fas fa-qrcode"></i> <span><b>Pay online by UPI</b><small>Google Pay · PhonePe · Paytm · BHIM — pay now by QR</small></span></label>`}
+                    <label class="${method === 'COD' ? 'active' : ''}"><input type="radio" name="stPay" ${method === 'COD' ? 'checked' : ''} onchange="stSetPay('COD')">
                         <i class="fas fa-money-bill"></i> <span><b>${pickup ? 'Pay at pickup' : 'Cash on delivery'}</b><small>${pickup ? 'Pay in cash at the pharmacy counter' : 'Pay in cash when the medicines arrive'}</small></span></label>
                 </section>` : `
                 <p class="st-hint"><i class="fas fa-money-bill"></i> ${pickup ? 'Pay in cash at the pharmacy counter.' : 'Cash on delivery — pay when the medicines arrive.'}</p>`}
-                <button class="btn btn-success" id="st-place" onclick="stPlaceOrder()">${upi
-                    ? `<i class="fas fa-qrcode"></i> Place Order &amp; Pay ${stMoney(subtotal + fee)}`
-                    : '<i class="fas fa-check"></i> Place Order'}</button>
+                <button class="btn btn-success" id="st-place" onclick="stPlaceOrder()">${online
+                    ? `<i class="fas fa-lock"></i> Pay ${stMoney(subtotal + fee)} securely`
+                    : (upi ? `<i class="fas fa-qrcode"></i> Place Order &amp; Pay ${stMoney(subtotal + fee)}` : '<i class="fas fa-check"></i> Place Order')}</button>
+                ${online ? `<p class="pay-note"><i class="fas fa-shield-halved"></i> Secure payment by Razorpay. A receipt is emailed as soon as you pay.</p>` : ''}
                 ${upi ? `<p class="st-hint" style="margin: .8rem 0 0; text-align: center;">The UPI QR code opens next. Your medicines are held for ${store.payMinutes} minutes while you pay.</p>` : ''}
                 <p class="st-hint" style="margin: 1rem 0 0; text-align: center;"><i class="fas fa-envelope"></i> The full order details will be emailed to ${shEsc((typeof currentUser !== 'undefined' && currentUser && currentUser.email) || 'your email')}.</p>
             </div>` : `
@@ -439,8 +444,9 @@ function stPlaceOrder() {
         store.form.notes = '';
         store.tab = 'orders';
         loadStore().then(() => stTab('orders'));
-        // a UPI order goes straight to the payment screen; a cash order is done
-        if (res.pay) stShowPay({ id: res.id, order_no: res.order_no, total: res.total, pay: res.pay }, true);
+        // an online order opens Razorpay, a UPI order the QR screen; a cash order is done
+        if (res.checkout) stPayOnline(res.checkout, res.id, true);
+        else if (res.pay) stShowPay({ id: res.id, order_no: res.order_no, total: res.total, pay: res.pay }, true);
         else stShowPlaced(res, pickup);
     }).catch(() => {
         store.placing = false;
@@ -467,10 +473,35 @@ function stShowPlaced(res, pickup) {
         </div>`);
 }
 
+// ---------------------------------------------------------------- online payment (Razorpay)
+// checkout comes from the server; the order is held for store.payMinutes while it is unpaid
+async function stPayOnline(checkout, id, justPlaced) {
+    const r = await payOnline(checkout);
+    stLoadOrders(true);
+    if (r.paid) {
+        return payShowReceipt(r.receipt, { title: justPlaced ? 'Order placed & paid!' : 'Payment successful', done: 'Track my order',
+            onDone: () => { if (store.tab !== 'orders') stTab('orders'); } });
+    }
+    if (r.reason !== 'closed') return;
+    const again = await shConfirm(`Payment not completed. Order ${checkout.ref_no} is kept for ${store.payMinutes} minutes — pay now so the pharmacy can prepare it.`,
+        { yes: 'Try again', no: 'Pay later' });
+    if (again) stPayNowOnline(id);
+    else shToast(`You can pay from My Orders within ${store.payMinutes} minutes, otherwise the order is cancelled.`, 'info');
+}
+
+async function stPayNowOnline(id) {
+    const r = await payAgain('medicine', id);
+    stLoadOrders(true);
+    if (r.paid) payShowReceipt(r.receipt, { done: 'Track my order' });
+}
+
 // ---------------------------------------------------------------- UPI payment
-// 'UPI' or 'COD' for the order being placed; UPI is offered only when the hospital has set its UPI ID
+// 'Online', 'UPI' or 'COD' for the order being placed. Online (Razorpay) replaces the UPI QR when it is set up.
 function stPayMethod() {
-    return store.upi && store.form && store.form.payment !== 'COD' ? 'UPI' : 'COD';
+    const chosen = store.form && store.form.payment;
+    if (chosen === 'COD') return 'COD';
+    if (store.online) return 'Online';
+    return store.upi ? 'UPI' : 'COD';
 }
 
 function stSetPay(method) {
@@ -564,6 +595,7 @@ function stSubmitUtr(id) {
 
 // Payment line of an order in My Orders
 function stPayLine(o) {
+    if (o.payment_method === 'Online') return stOnlineLine(o);
     if (o.payment_method !== 'UPI') return '';
     const ref = o.payment_ref ? ` · UTR ${shEsc(o.payment_ref)}` : '';
     if (o.pay) return `<div class="st-payline due"><span><i class="fas fa-clock"></i> <b>Payment pending</b> — pay ${stMoney(o.total)} by UPI within ${Math.max(1, Math.ceil(o.pay.seconds_left / 60))} min or the order is cancelled.</span>
@@ -575,6 +607,19 @@ function stPayLine(o) {
         'Refunded': `<i class="fas fa-rotate-left"></i> <b>Refund of ${stMoney(o.total)} sent</b> to your UPI account${ref}`
     }[o.payment_status];
     return text ? `<div class="st-payline ${o.payment_status === 'Paid' ? 'ok' : (o.payment_status === 'Submitted' ? 'wait' : '')}"><span>${text}</span></div>` : '';
+}
+
+function stOnlineLine(o) {
+    const receipt = o.receipt_token ? `<a class="pay-receipt-btn" href="${payReceiptUrl(o.receipt_token)}" target="_blank" rel="noopener"><i class="fas fa-file-invoice"></i> Receipt</a>` : '';
+    const ref = o.payment_ref ? ` · ${shEsc(o.payment_ref)}` : '';
+    if (o.pay) return `<div class="st-payline due"><span><i class="fas fa-clock"></i> <b>Payment pending</b> — pay ${stMoney(o.total)} online within ${Math.max(1, Math.ceil(o.pay.seconds_left / 60))} min or the order is cancelled.</span>
+        <button class="pay-now-btn" onclick="stPayNowOnline(${o.id})"><i class="fas fa-lock"></i> Pay now</button></div>`;
+    const text = {
+        'Paid': `<i class="fas fa-circle-check"></i> <b>Paid online</b> · ${shEsc(o.payment_detail || 'Razorpay')}${o.receipt_no ? ' · Receipt ' + shEsc(o.receipt_no) : ''}`,
+        'Refund Due': `<i class="fas fa-rotate-left"></i> <b>Refund of ${stMoney(o.total)} is being processed</b> by Razorpay${ref}`,
+        'Refunded': `<i class="fas fa-rotate-left"></i> <b>Refund of ${stMoney(o.total)} sent</b> to ${shEsc(o.payment_detail || 'your account')}`
+    }[o.payment_status];
+    return text ? `<div class="st-payline ${o.payment_status === 'Paid' ? 'ok' : ''}"><span>${text}</span>${receipt}</div>` : '';
 }
 
 function stNeedLogin() {
@@ -623,7 +668,7 @@ function stRenderOrders() {
             ${cancelled
                 ? `<p class="st-cancelled"><i class="fas fa-ban"></i> This order was cancelled${o.cancel_reason ? ': ' + shEsc(o.cancel_reason) : '.'}</p>`
                 : `<div class="st-steps">${o.flow.map((s, i) => `<div class="${i < at ? 'past' : (i === at ? 'now' : '')}" style="--n: ${i};"><span>${i < at ? '<i class="fas fa-check"></i>' : i + 1}</span>${shEsc(s)}</div>`).join('')}</div>
-                   <p class="st-now">${shEsc(o.pay ? 'Waiting for your UPI payment.'
+                   <p class="st-now">${shEsc(o.pay ? (o.pay.online ? 'Waiting for your online payment.' : 'Waiting for your UPI payment.')
                        : (o.payment_status === 'Submitted' ? 'Your payment is being verified by the pharmacy.'
                        : (o.payment_status === 'Paid' && /Delivery|Pickup/.test(o.status) ? ST_STATUS_TEXT[o.status].replace(/ Please keep the cash ready\./, ' It is already paid.') : (ST_STATUS_TEXT[o.status] || ''))))}</p>`}
             ${stPayLine(o)}
@@ -631,7 +676,7 @@ function stRenderOrders() {
                 <div>
                     ${o.items.map(i => `<div class="st-item"><span>${shEsc(i.name)} × ${i.qty} ${shEsc(i.unit)}</span><span>${stMoney(i.line_total)}</span></div>`).join('')}
                     <div class="st-item"><span>${pickup ? 'Pickup' : 'Delivery'}</span><span>${+o.delivery_fee ? stMoney(o.delivery_fee) : 'Free'}</span></div>
-                    <div class="st-item sum"><span>Total (${o.payment_method === 'UPI' ? 'UPI payment' : shEsc(o.payment_method)})</span><span>${stMoney(o.total)}</span></div>
+                    <div class="st-item sum"><span>Total (${o.payment_method === 'UPI' ? 'UPI payment' : (o.payment_method === 'Online' ? (o.payment_status === 'Paid' ? 'paid online' : 'online payment') : shEsc(o.payment_method))})</span><span>${stMoney(o.total)}</span></div>
                 </div>
                 <div class="st-where">
                     <p><i class="fas ${pickup ? 'fa-store' : 'fa-location-dot'}"></i> ${pickup ? 'Pickup at the hospital pharmacy counter' : `${shEsc(o.address)}, ${shEsc(o.city)} - ${shEsc(o.pincode)}`}</p>

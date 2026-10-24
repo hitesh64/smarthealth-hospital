@@ -1,5 +1,5 @@
-"""Medicine orders: the steps an order moves through, cancelling, unpaid UPI orders running out of
-time, the delivery OTP and the status mails."""
+"""Medicine orders: the steps an order moves through, cancelling, unpaid UPI / online orders running
+out of time, the delivery OTP and the status mails."""
 import re
 import secrets
 from datetime import timedelta
@@ -10,7 +10,9 @@ import bcrypt
 from . import config
 from .db import db, now
 from .mail import notify_patient
-from .utils import nice_date
+from .utils import background, nice_date
+
+PREPAID = ("UPI", "Online")  # paid before the pharmacy prepares the order
 
 UPI_RE = re.compile(r"^[a-zA-Z0-9._-]{2,}@[a-zA-Z0-9]{2,}$")
 
@@ -21,6 +23,11 @@ def upi_enabled():
 
 def money(v):
     return f"{float(v or 0):.2f}"
+
+
+def pay_seconds_left(order):
+    """How long an unpaid UPI / online order still holds its medicines."""
+    return max(0, int((order["updated_at"] + timedelta(minutes=config.UPI_PAY_MINUTES) - now()).total_seconds()))
 
 
 def upi_link(order):
@@ -63,21 +70,30 @@ def cancel_order(order_id, reason, from_statuses, by, only_unpaid=False):
     }}])
     if res.modified_count != 1:
         return False
-    order = db.medicine_orders.find_one({"_id": order_id}, {"items": 1})
+    order = db.medicine_orders.find_one({"_id": order_id}, {"items": 1, "payment_method": 1, "payment_status": 1})
     for item in order.get("items", []):
         db.medicines.update_one({"_id": item["medicine_id"]}, {"$inc": {"stock": int(item["qty"])}})
+    # money paid online goes back through Razorpay on its own (the patient gets a refund mail)
+    if order.get("payment_method") == "Online" and order.get("payment_status") == "Refund Due":
+        from .payments import refund_for
+        background(refund_for, "medicine", order_id, reason or "Order cancelled")
     return True
 
 
 def expire_unpaid_orders():
-    """A UPI order holds its medicines while it waits for payment. If the patient does not pay in
-    UPI_PAY_MINUTES the order is cancelled, the stock is released and the patient is told by mail.
-    The clock restarts when the pharmacy asks for the payment reference again."""
+    """A UPI / online order holds its medicines while it waits for payment. If the patient does not pay
+    in UPI_PAY_MINUTES the order is cancelled, the stock is released and the patient is told by mail.
+    The clock restarts when the pharmacy asks for the payment reference again. An online order is
+    first checked with Razorpay, in case it was paid but the browser never reported back."""
     late = db.medicine_orders.find({
-        "status": "Placed", "payment_method": "UPI", "payment_status": "Pending",
-        "updated_at": {"$lt": now() - timedelta(minutes=config.UPI_PAY_MINUTES)}}, {"_id": 1})
+        "status": "Placed", "payment_method": {"$in": list(PREPAID)}, "payment_status": "Pending",
+        "updated_at": {"$lt": now() - timedelta(minutes=config.UPI_PAY_MINUTES)}}, {"_id": 1, "payment_method": 1})
     done = 0
     for o in list(late):
+        if o["payment_method"] == "Online":
+            from .payments import sync_pending
+            if sync_pending("medicine", {"ref_id": o["_id"]}, 0):
+                continue
         if cancel_order(o["_id"], f"Payment was not completed within {config.UPI_PAY_MINUTES} minutes", ["Placed"], "system", True):
             notify_order_status(o["_id"])
             done += 1
@@ -102,12 +118,20 @@ def order_email(order_id, event="", ref="", otp=""):
         return None
     pickup = o["delivery_type"] == "Pickup"
     upi = o["payment_method"] == "UPI"
+    online = o["payment_method"] == "Online"
+    ref_name = "payment ID" if online else "UTR"
     paid = o.get("payment_status") == "Paid"
     total = money(o["total"])
     lines = "".join(f"  {i['name']} x {i['qty']} {i['unit']} = Rs. {money(i['line_total'])}\n" for i in o.get("items", []))
-    payment = o["payment_method"] if not upi else "UPI - " + {
-        "Pending": "NOT PAID YET", "Submitted": f"paid, being verified (UTR {o.get('payment_ref')})",
-        "Paid": f"PAID (UTR {o.get('payment_ref')})"}.get(o.get("payment_status"), o.get("payment_status"))
+    if online:
+        payment = "Online (Razorpay) - " + {
+            "Pending": "NOT PAID YET",
+            "Paid": f"PAID by {o.get('payment_detail') or 'online payment'} (payment ID {o.get('payment_ref')}, receipt {o.get('receipt_no')})",
+        }.get(o.get("payment_status"), o.get("payment_status"))
+    else:
+        payment = o["payment_method"] if not upi else "UPI - " + {
+            "Pending": "NOT PAID YET", "Submitted": f"paid, being verified (UTR {o.get('payment_ref')})",
+            "Paid": f"PAID (UTR {o.get('payment_ref')})"}.get(o.get("payment_status"), o.get("payment_status"))
     fee = f"Rs. {money(o['delivery_fee'])}" if float(o.get("delivery_fee") or 0) > 0 else "Free"
     bill = (lines + f"\nSubtotal: Rs. {money(o['subtotal'])}\n" + ("Pickup" if pickup else "Delivery") + f": {fee}"
             + "\n" + ("TOTAL" if paid else "TOTAL TO PAY") + f": Rs. {total}\nPayment: {payment}")
@@ -143,17 +167,20 @@ def order_email(order_id, event="", ref="", otp=""):
                          f"If you have not paid yet, you can pay from the same place. Please do it within {config.UPI_PAY_MINUTES} minutes, "
                          f"otherwise the order is cancelled automatically.\nFor help call {config.HOSPITAL_PHONE}."),
             "refunded": (f"Refund sent - {o['order_no']}",
-                         f"The refund of Rs. {total} for your cancelled order {o['order_no']} has been sent back to the account you paid from"
-                         + (f" (payment UTR {o.get('payment_ref')})" if o.get("payment_ref") else "")
-                         + f".\n\nIt can take up to 3-5 working days to show in your bank account. For help call {config.HOSPITAL_PHONE}."),
+                         f"The refund of Rs. {total} for your cancelled order {o['order_no']} has been sent back to the "
+                         + (f"{o.get('payment_detail') or 'account'} you paid with" if online else "account you paid from")
+                         + (f" (payment {ref_name} {o.get('payment_ref')})" if o.get("payment_ref") else "")
+                         + (f".\nRazorpay refund ID: {o.get('refund_id')}" if online and o.get("refund_id") else "")
+                         + f".\n\nIt can take up to {'5-7' if online else '3-5'} working days to show in your bank account. For help call {config.HOSPITAL_PHONE}."),
         }
         mail = mails.get(event)
         return [o["user_email"], mail[0], hello + mail[1] + bye] if mail else None
 
     collect = "It is already paid online - nothing more to pay." if paid else f"Please keep Rs. {total} ready."
     if o.get("payment_status") == "Refund Due":
-        refund = (f"Your UPI payment of Rs. {total}" + (f" (UTR {o.get('payment_ref')})" if o.get("payment_ref") else "")
-                  + " will be REFUNDED to the account you paid from. We will email you when the refund is sent.")
+        refund = (f"Your {'online' if online else 'UPI'} payment of Rs. {total}" + (f" ({ref_name} {o.get('payment_ref')})" if o.get("payment_ref") else "")
+                  + " will be REFUNDED to the account you paid from" + (" automatically through Razorpay" if online else "")
+                  + ". We will email you when the refund is sent.")
     else:
         refund = "You do not have to pay anything for this order" + ("" if pickup else " and nothing will be delivered") + "."
 
@@ -187,8 +214,8 @@ def order_email(order_id, event="", ref="", otp=""):
             head = f"As you asked, your medicine order {o['order_no']} has been CANCELLED."
             tail = f"If you did not cancel this order yourself, please contact us at {config.HOSPITAL_PHONE}."
         elif by == "system":
-            head = f"Your medicine order {o['order_no']} has been CANCELLED because the UPI payment was not completed in time."
-            tail = (f"If money was taken from your account for this order, call {config.HOSPITAL_PHONE} with the UTR and we will sort it out. "
+            head = f"Your medicine order {o['order_no']} has been CANCELLED because the {'online' if online else 'UPI'} payment was not completed in time."
+            tail = (f"If money was taken from your account for this order, call {config.HOSPITAL_PHONE} with the {ref_name} and we will sort it out. "
                     "You can place a new order any time under Medicine Store." if o.get("payment_status") == "Not Paid"
                     else f"You can place a new order any time under Medicine Store. For help call {config.HOSPITAL_PHONE}.")
         else:

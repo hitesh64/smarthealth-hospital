@@ -71,6 +71,25 @@ py -3.12 scripts/send_reminders.py
 * The report can be printed / saved as PDF by the patient, is emailed as "ready", and doctors see it
   in the patient record (also by scanning the Health Card QR).
 
+## Online payment (Razorpay)
+
+* Set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in `.env` (Render: Environment). `rzp_test_` keys =
+  test mode, no real money moves; swap in the `rzp_live_` keys to go live. Empty = online payment off.
+* Medicine orders and lab bookings get a "Pay online now" choice (UPI, cards, net banking, wallets).
+  The amount always comes from the database; the payment's signature is checked with the key secret
+  and the payment is read back from Razorpay before anything is marked paid.
+* Checkout runs in redirect mode, so bank / card OTP pages also work where popups are blocked (phones,
+  in-app browsers). Razorpay posts back to `/api/pay/callback`.
+* After paying the patient sees a receipt popup and gets a designed receipt email with a link to
+  `receipt.html` (print / save as PDF). My Orders, My Bookings and the admin lists link to it too.
+* A paid order or booking that is cancelled is refunded automatically through Razorpay. Refunds come
+  out of the Razorpay balance: if it is too low the order stays "Refund due" and the pharmacy's
+  "Refund via Razorpay" button tries again.
+* Unpaid online medicine orders hold their stock for `UPI_PAY_MINUTES` and are then cancelled; an
+  unpaid online lab booking turns into "pay at collection". A payment whose browser closed before it
+  reported back is found later from Razorpay, so nobody pays without getting the order.
+* Test payments: in test checkout pick Net banking → any bank → "Success" (or "Failure").
+
 ## Ambulance routes
 
 * The hospital's fixed point is `HOSPITAL_LAT` / `HOSPITAL_LNG` (default: Cross Road B, MIDC,

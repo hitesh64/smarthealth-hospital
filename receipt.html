@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Payment Receipt - SmartHealth Hospital</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --ink: #0f172a; --soft: #64748b; --line: #e2e8f0; --brand: #2563eb; --brand2: #4f46e5; --ok: #16a34a; --bg: #eef2f7; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--ink); font: 400 14px/1.5 Inter, "Segoe UI", Roboto, sans-serif; padding: 28px 16px 40px; }
+        .bar { max-width: 760px; margin: 0 auto 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .bar a, .bar button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: 600 13.5px Inter, sans-serif; cursor: pointer; text-decoration: none; }
+        .bar button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+        .bar .btns { display: flex; gap: 8px; }
+        .sheet { position: relative; max-width: 760px; margin: 0 auto; background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px -20px rgba(15,23,42,.25); }
+        .head { position: relative; display: flex; justify-content: space-between; gap: 18px; padding: 28px 32px; color: #fff; background: linear-gradient(135deg, #1d4ed8, var(--brand2)); overflow: hidden; }
+        .head::after { content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%; background: rgba(255,255,255,.08); }
+        .brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+        .brand img { width: 52px; height: 52px; border-radius: 14px; background: #fff; padding: 5px; }
+        .brand b { display: block; font-size: 19px; font-weight: 800; }
+        .brand small { opacity: .85; font-size: 12.5px; }
+        .title { text-align: right; position: relative; z-index: 1; }
+        .title h1 { font-size: 22px; font-weight: 800; letter-spacing: .3px; }
+        .title small { opacity: .85; }
+        .stamp { position: absolute; right: 34px; top: 150px; transform: rotate(-12deg); padding: 6px 16px; border: 3px solid var(--ok); color: var(--ok); border-radius: 10px; font-weight: 800; font-size: 20px; letter-spacing: 3px; opacity: .85; }
+        .stamp.refunded { border-color: #dc2626; color: #dc2626; }
+        .body { padding: 26px 32px 30px; }
+        .amount { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; margin-bottom: 22px; }
+        .amount .tick { width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; background: var(--ok); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .amount small { display: block; color: #166534; font-weight: 600; }
+        .amount b { font-size: 30px; font-weight: 800; line-height: 1.15; }
+        .amount.refunded { background: #fef2f2; border-color: #fecaca; }
+        .amount.refunded .tick { background: #dc2626; }
+        .amount.refunded small { color: #991b1b; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; margin-bottom: 24px; }
+        .grid div small { display: block; color: var(--soft); font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
+        .grid div b { font-weight: 600; word-break: break-word; }
+        .mono { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+        h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--soft); margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 22px; }
+        th { text-align: left; font-size: 12px; color: var(--soft); font-weight: 600; padding: 9px 0; border-bottom: 1px solid var(--line); }
+        th:last-child, td:last-child { text-align: right; white-space: nowrap; }
+        td { padding: 11px 0; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        td small { display: block; color: var(--soft); font-size: 12px; }
+        tr.line td { color: #475569; border: 0; padding: 6px 0; }
+        tr.sum td { border-top: 2px solid var(--ink); border-bottom: 0; padding-top: 12px; font-size: 17px; font-weight: 800; }
+        .info { background: #f8fafc; border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; }
+        .info div { display: flex; gap: 14px; padding: 4px 0; }
+        .info span { min-width: 92px; color: var(--soft); }
+        .next { background: #eff6ff; color: #1e3a8a; border-radius: 14px; padding: 14px 16px; white-space: pre-line; margin-bottom: 18px; }
+        .test { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; border-radius: 12px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 18px; }
+        .foot { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 16px 32px; background: #f8fafc; color: var(--soft); font-size: 12px; border-top: 1px dashed var(--line); }
+        .foot i { color: var(--ok); }
+        .state { max-width: 520px; margin: 60px auto; text-align: center; background: #fff; border-radius: 18px; padding: 36px 24px; box-shadow: 0 20px 50px -25px rgba(15,23,42,.3); }
+        .state i { font-size: 34px; color: var(--brand); margin-bottom: 12px; }
+        .skel { height: 480px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: sk 1.2s infinite; }
+        @keyframes sk { to { background-position: -200% 0; } }
+        @media (max-width: 600px) {
+            body { padding: 14px 12px 30px; }
+            .head { flex-direction: column; padding: 22px 20px; }
+            .title { text-align: left; }
+            .body { padding: 20px; }
+            .grid { grid-template-columns: 1fr; }
+            .stamp { top: 196px; right: 18px; font-size: 15px; }
+            .foot { padding: 14px 20px; }
+            .info div { flex-direction: column; gap: 0; }
+        }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .bar { display: none; }
+            .sheet { box-shadow: none; border-radius: 0; max-width: none; }
+            .head, .amount, .stamp, .next, .test { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <a href="/"><i class="fas fa-arrow-left"></i> SmartHealth</a>
+        <div class="btns" id="btns" hidden>
+            <button class="primary" onclick="window.print()"><i class="fas fa-download"></i> Download PDF / Print</button>
+        </div>
+    </div>
+    <main id="out"><div class="sheet"><div class="skel"></div></div></main>
+
+    <script>
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const rs = v => '₹' + v;
+        const out = document.getElementById('out');
+        const token = new URLSearchParams(location.search).get('t') || '';
+
+        function fail(msg) {
+            out.innerHTML = `<div class="state"><i class="fas fa-file-circle-xmark"></i><h2>Receipt not found</h2><p style="color:#64748b;margin-top:6px;">${esc(msg)}</p></div>`;
+        }
+
+        fetch('api/pay?action=receipt&t=' + encodeURIComponent(token)).then(r => r.json()).then(d => {
+            if (d.status !== 'success') return fail(d.message || 'Please open the link from your email again.');
+            const r = d.receipt, refunded = r.status === 'Refunded';
+            document.title = `Receipt ${r.receipt_no} - ${r.hospital.name}`;
+            out.innerHTML = `
+            <article class="sheet">
+                <header class="head">
+                    <div class="brand"><img src="assets/logo-mark-100.webp" alt=""><span><b>${esc(r.hospital.name)}</b><small>${esc(r.hospital.address)}</small></span></div>
+                    <div class="title"><h1>PAYMENT RECEIPT</h1><small>${esc(r.receipt_no)}</small></div>
+                </header>
+                <span class="stamp ${refunded ? 'refunded' : ''}">${refunded ? 'REFUNDED' : 'PAID'}</span>
+                <div class="body">
+                    <div class="amount ${refunded ? 'refunded' : ''}">
+                        <span class="tick"><i class="fas ${refunded ? 'fa-rotate-left' : 'fa-check'}"></i></span>
+                        <span><small>${refunded ? 'Amount refunded' : 'Amount paid'}</small><b>${rs(esc(r.amount_text))}</b></span>
+                    </div>
+                    <div class="grid">
+                        <div><small>Billed to</small><b>${esc(r.name)}</b><br><span style="color:#64748b">${esc(r.email)}${r.phone ? ' · ' + esc(r.phone) : ''}</span></div>
+                        <div><small>${esc(r.kind_label)}</small><b>${esc(r.ref_no)}</b></div>
+                        <div><small>Paid on</small><b>${esc(r.paid_at)}</b></div>
+                        <div><small>Paid by</small><b>${esc(r.method)}</b></div>
+                        <div><small>Payment ID</small><b class="mono">${esc(r.payment_id)}</b></div>
+                        <div><small>Razorpay order</small><b class="mono">${esc(r.order_id)}</b></div>
+                        ${refunded ? `<div><small>Refund ID</small><b class="mono">${esc(r.refund_id)}</b></div><div><small>Refunded on</small><b>${esc(r.refunded_at)}</b></div>` : ''}
+                    </div>
+                    <h3>Bill</h3>
+                    <table>
+                        <thead><tr><th>Item</th><th>Amount</th></tr></thead>
+                        <tbody>
+                            ${r.items.map(i => `<tr><td><b>${esc(i.name)}</b><small>${esc(i.detail)}</small></td><td>${rs(esc(i.amount))}</td></tr>`).join('')}
+                            ${r.lines.map(([a, b]) => `<tr class="line"><td>${esc(a)}</td><td>${b === 'Free' ? 'Free' : rs(esc(b))}</td></tr>`).join('')}
+                            <tr class="sum"><td>Total ${refunded ? 'refunded' : 'paid'}</td><td>${rs(esc(r.amount_text))}</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="info">${r.info.map(([a, b]) => `<div><span>${esc(a)}</span><b>${esc(b)}</b></div>`).join('')}</div>
+                    ${refunded ? '' : `<div class="next"><b>What happens next</b>\n${esc(r.next)}</div>`}
+                    ${r.test_mode ? '<div class="test"><i class="fas fa-flask"></i> <b>Test mode payment</b> - made with Razorpay test keys, no real money was charged.</div>' : ''}
+                </div>
+                <footer class="foot">
+                    <span>Help: ${esc(r.hospital.phone)} · This is a computer-generated receipt and needs no signature.</span>
+                    <span><i class="fas fa-lock"></i> Payment secured by Razorpay</span>
+                </footer>
+            </article>`;
+            document.getElementById('btns').hidden = false;
+        }).catch(() => fail('Could not reach the hospital. Please check your internet and try again.'));
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ from flask import Blueprint, Response, session
 from .. import config
 from ..db import db, next_id, now, out, out_all
 from ..mail import mail_configured, retry_failed_emails, waiting_retries
-from ..orders import (cancel_order, expire_unpaid_orders, issue_delivery_otp, next_status, notify_order_status,
+from ..orders import (PREPAID, cancel_order, expire_unpaid_orders, issue_delivery_otp, next_status, notify_order_status,
                       upi_enabled)
 from ..permissions import ADMIN_ACTIONS, tabs_for
 from ..utils import (arg, background, current_admin, fail, ist_day_start, ok, post, remove_upload, require_admin, require_perm, save_image,
@@ -224,8 +224,9 @@ def admin_api():
         nxt = next_status(order)
         if nxt is None or nxt != post("status"):
             fail(f"This order was already updated (now: {order['status']}). The list has been refreshed.", 409)
-        if order["payment_method"] == "UPI" and order.get("payment_status") != "Paid":
-            fail("This is a UPI order and its payment is not verified yet.", 409)
+        if order["payment_method"] in PREPAID and order.get("payment_status") != "Paid":
+            fail("This order is not paid yet." if order["payment_method"] == "Online"
+                 else "This is a UPI order and its payment is not verified yet.", 409)
         home = order["delivery_type"] != "Pickup"
 
         # home delivery is completed only with the OTP the patient received by email
@@ -248,7 +249,7 @@ def admin_api():
                      else 'Wrong OTP. The order is locked - press "Resend OTP" to email a new one.', 403)
 
         query = {"_id": order["_id"], "status": order["status"]}
-        if order["payment_method"] == "UPI":
+        if order["payment_method"] in PREPAID:
             query["payment_status"] = "Paid"
         if db.medicine_orders.update_one(query, {"$set": {"status": nxt, "updated_at": now()}}).modified_count != 1:
             fail("This order was already updated. The list has been refreshed.", 409)
@@ -301,6 +302,16 @@ def admin_api():
 
     if action == "markRefunded":
         oid = to_int(post("id"))
+        # an online payment is refunded through Razorpay (this also emails the patient)
+        order = db.medicine_orders.find_one({"_id": oid}, {"payment_method": 1, "payment_status": 1})
+        if order and order.get("payment_method") == "Online":
+            if order.get("payment_status") != "Refund Due":
+                fail("This refund was already handled. The list has been refreshed.", 409)
+            from ..payments import refund_for
+            error = refund_for("medicine", oid, "Refund by the pharmacy")
+            if error:
+                fail(f"Razorpay could not send the refund: {error}", 502)
+            return ok()
         if db.medicine_orders.update_one({"_id": oid, "payment_status": "Refund Due"},
                                          {"$set": {"payment_status": "Refunded", "updated_at": now()}}).modified_count != 1:
             fail("This refund was already handled. The list has been refreshed.", 409)

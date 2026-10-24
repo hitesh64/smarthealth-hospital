@@ -1,0 +1,111 @@
+/* Online payment (Razorpay): payment-method card, "please wait" screen and the receipt popup.
+   The popups sit outside the zoomed app container, so they use px. */
+
+/* ---------- payment method card (inside the checkout, rem like the rest of the app) ---------- */
+.pay-pick {
+    position: relative; display: flex; align-items: center; gap: .9rem; padding: 1rem 1.1rem; cursor: pointer;
+    border: 1.5px solid var(--border, #e2e8f0); border-radius: 13px; overflow: hidden;
+    transition: border-color .2s ease, box-shadow .25s ease, transform .2s ease, background-color .2s ease;
+}
+.pay-pick::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s ease;
+    background: linear-gradient(120deg, rgba(37,99,235,.09), rgba(79,70,229,.06) 55%, rgba(14,165,233,.08));
+}
+.pay-pick:hover { border-color: #93c5fd; transform: translateY(-1px); }
+.pay-pick.active { border-color: #2563eb; box-shadow: 0 12px 22px -16px rgba(37,99,235,.95); }
+.pay-pick.active::before { opacity: 1; }
+.pay-pick input { accent-color: #2563eb; position: relative; }
+.pay-pick-icon {
+    position: relative; width: 2.6rem; height: 2.6rem; flex-shrink: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    color: #1d4ed8; background: rgba(37,99,235,.1); font-size: 1.1rem; transition: all .2s ease;
+}
+.pay-pick.active .pay-pick-icon { color: #fff; background: linear-gradient(135deg, #2563eb, #4f46e5); }
+.pay-pick-text { position: relative; flex: 1; min-width: 0; }
+.pay-pick-text b { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; color: var(--ink-strong, #0f172a); font-size: .95rem; }
+.pay-pick-text small { display: block; color: var(--ink-soft, #64748b); }
+.pay-chips { display: flex; gap: .55rem; margin-top: .35rem; color: #64748b; font-size: 1.05rem; }
+.pay-pick.active .pay-chips { color: #1e40af; }
+.pay-secure {
+    position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap;
+    padding: .2rem .55rem; border-radius: 999px; background: #0f172a; color: #fff; font-size: .68rem; font-weight: 700; letter-spacing: .3px;
+}
+.pay-secure i { font-size: .62rem; color: #4ade80; }
+.pay-test {
+    display: inline-block; padding: 1px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; border: 1px solid #fdba74;
+    font: 700 10px/1.6 var(--font, sans-serif); font-style: normal; letter-spacing: .6px; vertical-align: middle;
+}
+.pay-note { display: flex; align-items: center; gap: .5rem; margin: .7rem 0 0; color: var(--ink-soft, #64748b); font-size: .8rem; justify-content: center; }
+.pay-note i { color: #16a34a; }
+
+/* ---------- please wait ---------- */
+.pay-busy { position: fixed; inset: 0; z-index: 100003; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,.55); backdrop-filter: blur(3px); animation: sh-fade .2s ease; }
+.pay-busy-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px 34px; border-radius: 18px; background: #fff; color: #0f172a; font: 400 14px var(--font, sans-serif); box-shadow: 0 25px 60px rgba(0,0,0,.3); }
+.pay-busy-card b { font-size: 16px; }
+.pay-busy-card small { color: #64748b; }
+.pay-busy-ring { position: relative; width: 58px; height: 58px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: #2563eb; font-size: 22px; }
+.pay-busy-ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 4px solid #dbeafe; border-top-color: #2563eb; animation: pay-spin .9s linear infinite; }
+@keyframes pay-spin { to { transform: rotate(360deg); } }
+
+/* ---------- success popup with the receipt ---------- */
+.pay-done-card { max-width: 420px; padding-top: 22px; max-height: calc(100vh - 28px); overflow-y: auto; }
+.pay-burst { position: relative; width: 84px; height: 84px; margin: 0 auto 10px; }
+.pay-burst > span { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px; border-radius: 50%; background: #22c55e; opacity: 0; animation: pay-dot .9s .25s ease-out forwards; }
+.pay-burst > span:nth-child(2) { background: #3b82f6; --a: 60deg; }
+.pay-burst > span:nth-child(3) { background: #f59e0b; --a: 120deg; }
+.pay-burst > span:nth-child(4) { background: #22c55e; --a: 180deg; }
+.pay-burst > span:nth-child(5) { background: #a855f7; --a: 240deg; }
+.pay-burst > span:nth-child(6) { background: #3b82f6; --a: 300deg; }
+@keyframes pay-dot {
+    0% { opacity: 1; transform: rotate(var(--a, 0deg)) translateY(0) scale(1); }
+    100% { opacity: 0; transform: rotate(var(--a, 0deg)) translateY(-50px) scale(.4); }
+}
+.pay-tick { position: absolute; inset: 6px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 8px rgba(22,163,74,.15); animation: sh-pop .45s cubic-bezier(.34,1.56,.64,1); }
+.pay-tick svg { width: 100%; height: 100%; fill: none; stroke: #fff; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.pay-tick circle { stroke: none; }
+.pay-tick path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: pay-draw .45s .3s ease forwards; }
+@keyframes pay-draw { to { stroke-dashoffset: 0; } }
+.pay-amount { margin: 2px 0 14px; padding: 14px; border-radius: 14px; color: #fff; background: linear-gradient(135deg, #1d4ed8, #4f46e5); }
+.pay-amount small { display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .85; }
+.pay-amount b { font-size: 34px; line-height: 1.15; font-weight: 800; }
+.pay-slip { text-align: left; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 8px 14px; margin-bottom: 10px; }
+.pay-slip div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+.pay-slip div + div { border-top: 1px solid #eef2f7; }
+.pay-slip span { color: #64748b; white-space: nowrap; }
+.pay-slip b { text-align: right; word-break: break-all; }
+.pay-mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.pay-bill { text-align: left; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0 14px; font-size: 13px; }
+.pay-bill summary { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; cursor: pointer; font-weight: 600; list-style: none; }
+.pay-bill summary::-webkit-details-marker { display: none; }
+.pay-bill summary i { font-size: 11px; color: #64748b; transition: transform .2s ease; }
+.pay-bill[open] summary i { transform: rotate(180deg); }
+.pay-bill > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid #f1f5f9; }
+.pay-bill > div small { display: block; color: #64748b; font-size: 11.5px; }
+.pay-bill > div.is-line { color: #475569; }
+.pay-bill > div.is-sum { border-top: 2px solid #0f172a; padding: 9px 0 11px; font-size: 15px; font-weight: 800; }
+.pay-done .sh-actions button i { margin-right: 4px; }
+
+/* ---------- payment lines in My Orders / My Bookings ---------- */
+.pay-receipt-btn { display: inline-flex; align-items: center; gap: .4rem; padding: .55rem 1.1rem; border: 1px solid rgba(22,163,74,.4); border-radius: 8px; background: #fff; color: #166534; font: 700 .85rem var(--font, sans-serif); cursor: pointer; text-decoration: none; }
+.pay-receipt-btn:hover { background: rgba(22,163,74,.08); }
+.st-payline button.pay-now-btn { background: linear-gradient(135deg, #2563eb, #4f46e5); }
+
+@media (max-width: 480px) {
+    .pay-secure { display: none; }
+    .pay-amount b { font-size: 28px; }
+}
+
+/* the card also sits inside the store's .st-choice grid: undo the generic icon / label styles there */
+.st-choice label.pay-pick.active { border-color: #2563eb; background: none; box-shadow: 0 12px 22px -16px rgba(37,99,235,.95); }
+.st-choice label.pay-pick:hover { border-color: #93c5fd; }
+.st-choice .pay-pick i { width: auto; height: auto; display: inline; background: none; border-radius: 0; color: inherit; font-size: inherit; }
+.st-choice .pay-pick .pay-pick-text b { display: flex; }
+.st-choice .pay-pick input { accent-color: #2563eb; }
+
+/* lab booking form: the two payment choices, one under the other */
+.lb-pay { display: grid; gap: 8px; }
+.lb-pay .pay-pick { padding: 11px 12px; border-radius: 12px; background: var(--bg-page, #fff); }
+.lb-pay .pay-pick-text b { font-size: .86rem; }
+.lb-pay .pay-pick-text small { font-size: .72rem; }
+.ap-btn.lb-pay-btn { color: #fff; border-color: transparent; background: linear-gradient(135deg, #2563eb, #4f46e5); }
+.ap-btn.lb-pay-btn:hover { color: #fff; filter: brightness(1.08); }
+a.ap-btn { text-decoration: none; }

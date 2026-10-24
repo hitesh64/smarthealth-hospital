@@ -1,14 +1,16 @@
-"""Medicine store (patient side): product list, place an order, pay by UPI QR, own orders, cancel."""
+"""Medicine store (patient side): product list, place an order, pay online (Razorpay) or by UPI QR,
+own orders, cancel."""
 import json
 import re
 from datetime import timedelta
 
-from flask import Blueprint
+from flask import Blueprint, request
 
-from .. import config
+from .. import config, payments
 from ..db import db, next_id, now, out
 from ..mail import retry_failed_emails
-from ..orders import cancel_order, expire_unpaid_orders, notify_order_status, order_flow, upi_enabled, upi_link
+from ..orders import (cancel_order, expire_unpaid_orders, notify_order_status, order_flow, pay_seconds_left, upi_enabled,
+                      upi_link)
 from ..utils import arg, background, fail, ok, post, require_user, to_int, today_ist
 
 bp = Blueprint("store", __name__)
@@ -19,11 +21,14 @@ MAX_QTY_PER_ITEM = 20
 
 
 def pay_info(o):
-    """What the browser needs to show the "Pay by UPI" screen for an unpaid order; None otherwise."""
-    if o["payment_method"] != "UPI" or o["status"] != "Placed" or o.get("payment_status") != "Pending" or not upi_enabled():
+    """What the browser needs to show the payment screen for an unpaid order; None otherwise."""
+    if o["status"] != "Placed" or o.get("payment_status") != "Pending":
         return None
-    left = (o["updated_at"] + timedelta(minutes=config.UPI_PAY_MINUTES) - now()).total_seconds()
-    return {"upi_link": upi_link(o), "upi_id": config.UPI_ID, "payee": config.UPI_PAYEE_NAME, "seconds_left": max(0, int(left))}
+    if o["payment_method"] == "Online" and payments.enabled():
+        return {"online": True, "seconds_left": pay_seconds_left(o)}
+    if o["payment_method"] != "UPI" or not upi_enabled():
+        return None
+    return {"upi_link": upi_link(o), "upi_id": config.UPI_ID, "payee": config.UPI_PAYEE_NAME, "seconds_left": pay_seconds_left(o)}
 
 
 @bp.route("/api/store", methods=["GET", "POST"])
@@ -42,7 +47,8 @@ def store_api():
                     for m in rows]
         products.sort(key=lambda p: ((p["category"] or "").lower(), p["name"].lower()))
         return ok(products=products, delivery_fee=DELIVERY_FEE, free_delivery_above=FREE_DELIVERY_ABOVE,
-                  max_qty=MAX_QTY_PER_ITEM, upi_enabled=upi_enabled(), upi_pay_minutes=config.UPI_PAY_MINUTES)
+                  max_qty=MAX_QTY_PER_ITEM, upi_enabled=upi_enabled() and not payments.enabled(),
+                  online_enabled=payments.enabled(), test_mode=payments.test_mode(), upi_pay_minutes=config.UPI_PAY_MINUTES)
 
     email = require_user()
 
@@ -51,7 +57,10 @@ def store_api():
         phone = re.sub(r"\D", "", post("phone"))
         pickup = post("delivery_type") == "Pickup"
         address, city, pincode = post("address"), post("city"), post("pincode")
+        online = post("payment") == "Online"
         upi = post("payment") == "UPI"
+        if online and not payments.enabled():
+            fail("Online payment is not available right now. Please choose cash.")
         if upi and not upi_enabled():
             fail("UPI payment is not available right now. Please choose cash.")
         if len(name) < 2:
@@ -119,12 +128,21 @@ def store_api():
                  "delivery_type": "Pickup" if pickup else "Home Delivery",
                  "address": None if pickup else address[:255], "city": None if pickup else city[:60],
                  "pincode": None if pickup else pincode,
-                 "payment_method": "UPI" if upi else ("Pay at Pickup" if pickup else "Cash on Delivery"),
-                 "payment_status": "Pending" if upi else "COD", "payment_ref": None, "paid_at": None,
+                 "payment_method": "Online" if online else ("UPI" if upi else ("Pay at Pickup" if pickup else "Cash on Delivery")),
+                 "payment_status": "Pending" if (upi or online) else "COD", "payment_ref": None, "paid_at": None,
                  "notes": post("notes")[:255], "subtotal": subtotal, "delivery_fee": fee, "total": total,
                  "status": "Placed", "cancel_reason": None, "cancelled_by": None, "items": items,
                  "delivery_otp_hash": None, "otp_sent_at": None, "otp_attempts": 0, "created_at": now(), "updated_at": now()}
         db.medicine_orders.insert_one(order)
+        if online:
+            # the receipt mail (with the order details) goes out once it is paid
+            try:
+                checkout = payments.start("medicine", order, request.host_url)
+            except payments.PaymentError as exc:
+                cancel_order(oid, "Online payment could not be started", ["Placed"], "system", True)
+                fail(f"{exc} Your order was not placed - please try again or choose cash.", 502)
+            return ok(id=oid, order_no=order_no, total=total, email=email, payment_method="Online", checkout=checkout,
+                      pay=pay_info(order))
         background(notify_order_status, oid)
         return ok(id=oid, order_no=order_no, total=total, email=email, payment_method=order["payment_method"], pay=pay_info(order))
 
@@ -151,6 +169,11 @@ def store_api():
         return ok()
 
     if action == "myOrders":
+        # an online payment the browser did not report back (closed tab) is picked up here
+        pending = [o["_id"] for o in db.medicine_orders.find({"user_email": email, "payment_method": "Online", "payment_status": "Pending",
+                                                               "status": "Placed"}, {"_id": 1})]
+        if pending:
+            payments.sync_pending("medicine", {"ref_id": {"$in": pending}})
         orders = []
         for o in db.medicine_orders.find({"user_email": email}, {"delivery_otp_hash": 0}).sort("_id", -1):
             row = out(o)

@@ -99,5 +99,9 @@ def ensure_indexes():
     db.lab_bookings.create_index("booking_no", unique=True, partialFilterExpression={"booking_no": {"$type": "string"}})
     db.lab_bookings.create_index("user_email")
     db.lab_bookings.create_index("status")
+    db.payments.create_index("rzp_order_id", unique=True)
+    db.payments.create_index([("kind", ASCENDING), ("ref_id", ASCENDING)])
+    db.payments.create_index("receipt_token", unique=True, partialFilterExpression={"receipt_token": {"$type": "string"}})
+    db.payments.create_index([("status", ASCENDING), ("checked_at", ASCENDING)])
     # cached routes and address look-ups are dropped after a week
     db.geo_cache.create_index("created_at", expireAfterSeconds=7 * 86400)

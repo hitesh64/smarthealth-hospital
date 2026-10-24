@@ -93,8 +93,8 @@ def create_app():
                             "fix": "Set MONGO_URI (e.g. a MongoDB Atlas mongodb+srv:// link) in the hosting environment "
                                    "and allow the server's IP in Atlas > Network Access."}), 503
 
-    from .routes import admin, ai, auth, clinic, emergency, lab, settings, store
-    for module in (auth, clinic, admin, store, ai, emergency, lab, settings):
+    from .routes import admin, ai, auth, clinic, emergency, lab, pay, settings, store
+    for module in (auth, clinic, admin, store, ai, emergency, lab, settings, pay):
         app.register_blueprint(module.bp)
 
     @app.errorhandler(ApiError)

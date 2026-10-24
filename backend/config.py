@@ -93,6 +93,12 @@ UPI_ID = env("UPI_ID")
 UPI_PAYEE_NAME = env("UPI_PAYEE_NAME", HOSPITAL_NAME)
 UPI_PAY_MINUTES = env_int("UPI_PAY_MINUTES", 30)
 
+# --- Razorpay online payments (cards, UPI, net banking, wallets) for medicine orders and lab tests.
+# Use the rzp_test_ keys while testing (no real money moves). Empty = online payment is switched off.
+RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID")
+RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET")
+RAZORPAY_THEME = env("RAZORPAY_THEME", "#2563eb")
+
 # --- Delivery OTP for home deliveries ---
 DELIVERY_OTP_HOURS = 24
 DELIVERY_OTP_MAX_TRIES = 5

@@ -26,7 +26,7 @@ function loadLab() {
             ['Cancelled', 'Cancelled', s.cancelled, 'By patient or lab', 'fa-ban', ''],
             ['all', 'All bookings', s.total, 'Since the start', 'fa-database', ''],
             // money is taken when the sample is collected, so only collected bookings count as revenue
-            [null, 'Total lab revenue', afMoney(s.revenue), `Today ${afMoney(s.revenue_today)} · this month ${afMoney(s.revenue_month)} · ${s.paid_count} paid`, 'fa-indian-rupee-sign', 'green']
+            [null, 'Total lab revenue', afMoney(s.revenue), `Today ${afMoney(s.revenue_today)} · this month ${afMoney(s.revenue_month)} · ${s.paid_count} paid${s.paid_online ? ` (${afMoney(s.paid_online)} online)` : ''}`, 'fa-indian-rupee-sign', 'green']
         ].map(([f, label, value, hint, icon, tone]) => `
             <${f ? 'button type="button"' : 'div'} class="ord-stat ${tone ? 'tone-' + tone : ''} ${f && f === labFilter ? 'active' : ''}" ${f ? `onclick="labFilter='${f}'; loadLab()"` : 'title="Collected at sample collection. Bookings still waiting for the sample are shown under Awaiting sample."'}>
                 <span class="ord-stat-top"><span class="l">${label}</span><i class="fas ${icon}"></i></span><span class="v">${value}</span><span class="h">${hint}</span>
@@ -51,7 +51,8 @@ function renderLab() {
             <td><span class="cell-strong">${afEsc(b.booking_no)}</span><br><small>${afEsc(String(b.created_at).slice(0, 16))}</small></td>
             <td><span class="cell-strong">${afEsc(b.patient_name)}</span> · ${afEsc(b.age)} ${afEsc((b.gender || '')[0] || '')}<br>${afEsc(b.phone)}<br><small>${afEsc(b.user_email)}</small></td>
             <td>${b.items.map(i => `<div>${afEsc(i.name)}${i.is_package ? ` <small>(${i.components.length} tests)</small>` : ''}</div>`).join('')}
-                <small>${afMoney(b.total)} · pay at collection${b.fasting_hours ? ` · <b>${b.fasting_hours} h fasting</b>` : ''}</small></td>
+                <small>${afMoney(b.total)} · ${b.payment_status === 'Paid' ? '<b style="color: var(--success, #16a34a);">paid online</b>'
+                    : (b.payment_status === 'Refund Due' ? 'refund in process' : (b.payment_status === 'Refunded' ? 'refunded' : (b.payment_status === 'Pending' ? 'online payment pending' : 'pay at collection')))}${b.fasting_hours ? ` · <b>${b.fasting_hours} h fasting</b>` : ''}</small></td>
             <td><b>${afEsc(b.slot_date)}</b> ${afEsc(b.slot_time)}<br>${afEsc(b.collection_type)}${b.address ? `<br><small>${afEsc(b.address)}</small>` : ''}</td>
             <td><span class="badge ${LAB_BADGE[b.status] || 'pending'}">${afEsc(b.status)}</span>${b.status === 'Report Ready' && b.abnormal ? `<br><small style="color: var(--red); font-weight: 600;">${b.abnormal} flagged</small>` : ''}</td>
             <td><div class="row-actions">${actions}</div></td>

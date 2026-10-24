@@ -553,7 +553,7 @@ function renderOrderStats(filter) {
     if (!s) return;
     const tiles = [
         ['new', 'New orders', s.new_orders, s.to_verify ? `${s.to_verify} UPI payment${s.to_verify > 1 ? 's' : ''} to verify` : 'To confirm', 'fa-bell', s.new_orders ? 'red' : ''],
-        ['unpaid', 'Awaiting payment', s.awaiting_payment, 'UPI not paid yet', 'fa-hourglass-half', ''],
+        ['unpaid', 'Awaiting payment', s.awaiting_payment, 'Online / UPI not paid yet', 'fa-hourglass-half', ''],
         ['preparing', 'Being prepared', s.preparing, 'Confirmed or packed', 'fa-box-open', ''],
         ['dispatch', 'Out / ready', s.dispatch, 'For delivery or pickup', 'fa-truck', ''],
         ['done', 'Completed', s.completed, 'Delivered or collected', 'fa-circle-check', 'green'],
@@ -603,9 +603,10 @@ function renderOrders() {
         + (cut ? ` &middot; the list holds the ${afOrders.length} most recent orders of ${afOrderStats.total}; the counts above cover all of them` : '');
     document.getElementById('ord-list').innerHTML = rows.length ? rows.map(o => {
         const done = AF_ORDER_DONE.includes(o.status), pickup = o.delivery_type === 'Pickup', upi = o.payment_method === 'UPI';
+        const online = o.payment_method === 'Online';   // Razorpay: paid and checked automatically
         // UPI: the pharmacy checks the payment before it prepares the order
         const toVerify = upi && o.status === 'Placed' && o.payment_status === 'Submitted';
-        const unpaid = upi && o.status === 'Placed' && o.payment_status === 'Pending';
+        const unpaid = (upi || online) && o.status === 'Placed' && o.payment_status === 'Pending';
         const refund = o.payment_status === 'Refund Due';
         const otpOut = !pickup && o.status === 'Out for Delivery';          // waiting for the delivery OTP
         const otpStep = !pickup && o.next_status === 'Delivered';
@@ -622,28 +623,31 @@ function renderOrders() {
                     <p><i class="fas fa-envelope"></i> ${afEsc(o.user_email)}</p>
                     <p><i class="fas ${pickup ? 'fa-store' : 'fa-truck'}"></i> <b>${pickup ? 'Pickup at pharmacy counter' : 'Home delivery'}</b></p>
                     ${pickup ? '' : `<p><i class="fas fa-location-dot"></i> ${afEsc(o.address)}, ${afEsc(o.city)} - ${afEsc(o.pincode)}</p>`}
-                    <p><i class="fas ${upi ? 'fa-qrcode' : 'fa-money-bill'}"></i> ${upi ? '<b>UPI</b>' : afEsc(o.payment_method)}
-                        ${upi ? `<span class="badge ${AF_PAY_BADGE[o.payment_status] || 'manual'}">${afEsc(AF_PAY_TEXT[o.payment_status] || o.payment_status)}</span>` : ''}</p>
-                    ${o.payment_ref ? `<p><i class="fas fa-hashtag"></i> UTR <b class="ord-utr">${afEsc(o.payment_ref)}</b></p>` : ''}
+                    <p><i class="fas ${online ? 'fa-credit-card' : (upi ? 'fa-qrcode' : 'fa-money-bill')}"></i> ${online ? '<b>Online · Razorpay</b>' : (upi ? '<b>UPI</b>' : afEsc(o.payment_method))}
+                        ${upi || online ? `<span class="badge ${AF_PAY_BADGE[o.payment_status] || 'manual'}">${afEsc(AF_PAY_TEXT[o.payment_status] || o.payment_status)}</span>` : ''}</p>
+                    ${online && o.payment_detail ? `<p><i class="fas fa-wallet"></i> ${afEsc(o.payment_detail)}</p>` : ''}
+                    ${o.payment_ref ? `<p><i class="fas fa-hashtag"></i> ${online ? 'Payment ID' : 'UTR'} <b class="ord-utr">${afEsc(o.payment_ref)}</b></p>` : ''}
+                    ${online && o.receipt_token ? `<p><i class="fas fa-file-invoice"></i> <a href="receipt.html?t=${encodeURIComponent(o.receipt_token)}" target="_blank" rel="noopener">Receipt ${afEsc(o.receipt_no)}</a></p>` : ''}
                     ${o.notes ? `<p><i class="fas fa-note-sticky"></i> ${afEsc(o.notes)}</p>` : ''}
                     ${o.cancel_reason ? `<p style="color: var(--danger);"><i class="fas fa-ban"></i> ${afEsc(o.cancel_reason)}</p>` : ''}
                 </div>
                 <table class="ord-items">
                     ${o.items.map(i => `<tr><td>${afEsc(i.name)} × ${i.qty} ${afEsc(i.unit)}</td><td>${afMoney(i.line_total)}</td></tr>`).join('')}
                     <tr><td>Delivery</td><td>${+o.delivery_fee ? afMoney(o.delivery_fee) : 'Free'}</td></tr>
-                    <tr class="sum"><td>${!upi ? 'Total to collect' : (o.payment_status === 'Paid' ? 'Total (paid by UPI)' : 'Total (UPI)')}</td><td>${afMoney(o.total)}</td></tr>
+                    <tr class="sum"><td>${!(upi || online) ? 'Total to collect' : (o.payment_status === 'Paid' ? `Total (paid ${online ? 'online' : 'by UPI'})` : `Total (${online ? 'online' : 'UPI'})`)}</td><td>${afMoney(o.total)}</td></tr>
                 </table>
             </div>
             ${toVerify ? `<div class="feat-warn" ><b>Check this payment first:</b> open your UPI app / bank statement for ${afEsc(afUpiId)} and look for
                 ${afMoney(o.total)} with UTR <b>${afEsc(o.payment_ref)}</b>. Press "Payment received" only if it is really there.</div>` : ''}
             ${otpOut ? `<div class="feat-warn" ><b><i class="fas fa-key"></i> Delivery OTP:</b> a 6-digit OTP was emailed to ${afEsc(o.user_email)}.
                 Hand over the medicines, then ask the patient for the OTP and enter it to complete the delivery.${o.otp_locked ? ' <b style="color: var(--danger);">Locked after too many wrong tries - press "Resend OTP".</b>' : ''}</div>` : ''}
-            ${refund ? `<div class="feat-warn" ><b>Refund ${afMoney(o.total)}</b> to the patient from your UPI app (payment UTR ${afEsc(o.payment_ref || '—')}), then press "Refund sent".</div>` : ''}
+            ${refund && online ? `<div class="feat-warn" ><b>Refund ${afMoney(o.total)}</b> is sent back automatically through Razorpay${o.refund_error ? ` — <b style="color: var(--danger);">it failed: ${afEsc(o.refund_error)}</b>. Press "Refund via Razorpay" to try again.` : '. If it is still listed after a minute, press "Refund via Razorpay".'}</div>` : ''}
+            ${refund && !online ? `<div class="feat-warn" ><b>Refund ${afMoney(o.total)}</b> to the patient from your UPI app (payment UTR ${afEsc(o.payment_ref || '—')}), then press "Refund sent".</div>` : ''}
             ${(o.next_status || refund) ? `<div class="ord-actions">
                 ${toVerify ? `<button class="btn btn--success" onclick="orderPayment(${o.id}, 'verifyPayment')"><i class="fas fa-circle-check"></i> Payment received</button>
                               <button class="btn btn--warn" onclick="orderPayment(${o.id}, 'rejectPayment')">Payment not found</button>` : ''}
-                ${unpaid ? '<span class="feat-note">Waiting for the patient to pay by UPI.</span>' : ''}
-                ${refund ? `<button class="btn btn--success" onclick="orderPayment(${o.id}, 'markRefunded')"><i class="fas fa-rotate-left"></i> Refund sent</button>` : ''}
+                ${unpaid ? `<span class="feat-note">Waiting for the patient to pay ${online ? 'online' : 'by UPI'}.</span>` : ''}
+                ${refund ? `<button class="btn btn--success" onclick="orderPayment(${o.id}, 'markRefunded')"><i class="fas fa-rotate-left"></i> ${online ? 'Refund via Razorpay' : 'Refund sent'}</button>` : ''}
                 ${o.next_status && !toVerify && !unpaid ? `<button class="btn btn--success" onclick="advanceOrder(${o.id})"><i class="fas ${otpStep ? 'fa-key' : 'fa-check'}"></i> ${otpStep ? 'Enter OTP &amp; mark delivered' : (AF_ORDER_STEP[o.next_status] || afEsc(o.next_status))}</button>` : ''}
                 ${otpOut ? `<button class="btn btn--warn" onclick="resendOtp(${o.id})"><i class="fas fa-envelope"></i> Resend OTP</button>` : ''}
                 ${o.next_status ? `<button class="btn btn--danger" onclick="cancelOrderAdmin(${o.id})">Cancel order</button>` : ''}
@@ -688,7 +692,9 @@ async function orderPayment(id, action) {
     const ask = {
         verifyPayment: [`Have you seen ${afMoney(o.total)} with UTR ${o.payment_ref} in your UPI account?`, { yes: 'Yes, payment received' }, 'Payment verified. The patient has been emailed.'],
         rejectPayment: [`No payment with UTR ${o.payment_ref} arrived? The patient will be asked to check the UTR and enter it again.`, { yes: 'Payment not found', danger: true }, 'The patient has been asked for the correct UTR.'],
-        markRefunded: [`Have you sent the refund of ${afMoney(o.total)} to the patient?`, { yes: 'Yes, refund sent' }, 'Marked as refunded. The patient has been emailed.']
+        markRefunded: o.payment_method === 'Online'
+            ? [`Refund ${afMoney(o.total)} to the patient through Razorpay now?`, { yes: 'Yes, refund now' }, 'Refund sent through Razorpay. The patient has been emailed.']
+            : [`Have you sent the refund of ${afMoney(o.total)} to the patient?`, { yes: 'Yes, refund sent' }, 'Marked as refunded. The patient has been emailed.']
     }[action];
     if (!await shConfirm(ask[0], ask[1])) return;
     afApi('api/admin', action, {}, { id }).then(res => {

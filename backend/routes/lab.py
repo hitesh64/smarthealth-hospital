@@ -9,9 +9,10 @@ import json
 import re
 from datetime import datetime, timedelta
 
-from flask import Blueprint, session
+from flask import Blueprint, request, session
+from pymongo import ReturnDocument
 
-from .. import config
+from .. import config, payments
 from ..db import db, next_id, now, out
 from ..lab_catalog import CATEGORY_ORDER, TESTS, fill_calculated, flag_for, fmt_num, range_for, ref_text
 from ..mail import send_email
@@ -121,6 +122,9 @@ def booking_row(b, admin=False):
     row.pop("results", None)
     row["flow"] = FLOW
     row["can_cancel"] = b["status"] == "Booked"
+    # an unpaid booking can still be paid online from My Bookings (or in cash at collection)
+    row["can_pay"] = (payments.enabled() and b["status"] == "Booked"
+                      and b.get("payment_status") not in ("Paid", "Refund Due", "Refunded"))
     row["items"] = [{"code": i["code"], "name": i["name"], "price": i["price"], "is_package": i.get("is_package", False),
                      "components": [c["name"] for c in i.get("components", [])]} for i in b.get("items", [])]
     if b["status"] == "Report Ready" or admin:
@@ -153,7 +157,9 @@ def booking_mail(b, event):
         subject = f"Lab test booked - {b['booking_no']}"
         body = (f"Your lab test booking is confirmed.\n\nBooking number: {b['booking_no']}\nDate: {b['slot_date']}  Time: {b['slot_time']}\n"
                 f"{where}\n\nTESTS\n{tests}\n\nSubtotal: Rs. {b['subtotal']}\nCollection charge: "
-                + (f"Rs. {b['collection_fee']}" if b["collection_fee"] else "Free") + f"\nTOTAL (pay at collection): Rs. {b['total']}\n\n"
+                + (f"Rs. {b['collection_fee']}" if b["collection_fee"] else "Free")
+                + (f"\nTOTAL PAID ONLINE: Rs. {b['total']} (receipt {b.get('receipt_no')})\n\n" if b.get("payment_status") == "Paid"
+                   else f"\nTOTAL (pay at collection): Rs. {b['total']}\n\n")
                 + (f"PREPARATION\n{b['preparation']}\n\n" if b.get("preparation") else "")
                 + "Please keep a photo ID ready. You can follow the booking and open the report under Lab Tests > My Bookings.")
     elif event == "Sample Collected":
@@ -172,10 +178,52 @@ def booking_mail(b, event):
         subject = f"Lab booking cancelled - {b['booking_no']}"
         body = (f"Your lab booking {b['booking_no']} for {b['slot_date']} has been CANCELLED."
                 + (f"\n\nReason: {b.get('cancel_reason')}" if b.get("cancel_reason") and b.get("cancelled_by") == "lab" else "")
-                + "\n\nNothing has to be paid. You can book again any time under Lab Tests.")
+                + (f"\n\nYour online payment of Rs. {b['total']} will be REFUNDED automatically through Razorpay to the account "
+                   "you paid with. We will email you when the refund is sent." if b.get("payment_status") in ("Refund Due", "Refunded")
+                   else "\n\nNothing has to be paid.")
+                + " You can book again any time under Lab Tests.")
     else:
         return
     send_email(b["user_email"], subject, hello + body + bye)
+
+
+# ---------------------------------------------------------------- online payment
+
+def to_pay_at_collection(b):
+    """An online booking that was not paid stays booked: it is paid in cash at collection instead,
+    and the patient now gets the normal booking mail."""
+    res = db.lab_bookings.find_one_and_update(
+        {"_id": b["_id"], "payment_method": "Online", "payment_status": "Pending", "status": "Booked"},
+        {"$set": {"payment_method": "Pay at collection", "payment": "Pay at collection", "payment_status": "At collection",
+                  "updated_at": now()}}, return_document=ReturnDocument.AFTER)
+    if res:
+        background(booking_mail, res, "Booked")
+    return res
+
+
+def settle_online(email=None):
+    """Picks up online payments the browser did not report back, and turns online bookings that
+    stayed unpaid for UPI_PAY_MINUTES into pay-at-collection bookings."""
+    who = {"user_email": email} if email else {}
+    # a pay-at-collection booking can also be paid online later, so its payments are looked up too
+    ids = [b["_id"] for b in db.lab_bookings.find({"status": "Booked", "payment_status": {"$in": ["Pending", "At collection"]}, **who},
+                                                  {"_id": 1})]
+    if not ids or not db.payments.find_one({"kind": "lab", "status": "created", "ref_id": {"$in": ids}}, {"_id": 1}):
+        ids = []
+    if ids and payments.enabled():
+        payments.sync_pending("lab", {"ref_id": {"$in": ids}})
+    q = {"payment_method": "Online", "payment_status": "Pending", "status": "Booked", **who}
+    for b in list(db.lab_bookings.find({**q, "created_at": {"$lt": now() - timedelta(minutes=config.UPI_PAY_MINUTES)}})):
+        if not payments.sync_pending("lab", {"ref_id": b["_id"]}, 0):
+            to_pay_at_collection(b)
+
+
+def refund_if_paid(b):
+    """A cancelled booking that was paid online gets its money back (the refund is mailed separately)."""
+    if b.get("payment_status") == "Paid":
+        db.lab_bookings.update_one({"_id": b["_id"], "payment_status": "Paid"}, {"$set": {"payment_status": "Refund Due"}})
+        b["payment_status"] = "Refund Due"
+        background(payments.refund_for, "lab", b["_id"], b.get("cancel_reason") or "Lab booking cancelled")
 
 
 # ---------------------------------------------------------------- patient API
@@ -188,9 +236,11 @@ def lab_api():
         return ok(tests=sorted_views(tests), categories=[c for c in CATEGORY_ORDER if any(t.get("category") == c for t in tests.values())],
                   home_fee=config.LAB_HOME_COLLECTION_FEE, free_above=config.LAB_FREE_COLLECTION_ABOVE,
                   home_slots=HOME_SLOTS, lab_slots=LAB_SLOTS, days_ahead=BOOK_DAYS_AHEAD,
+                  online_enabled=payments.enabled(), test_mode=payments.test_mode(),
                   lab={"name": f"{config.HOSPITAL_NAME} Laboratory", "address": config.HOSPITAL_ADDRESS, "phone": config.HOSPITAL_PHONE})
 
     email = require_user()
+    settle_online(email)
 
     if action == "book":
         try:
@@ -215,6 +265,9 @@ def lab_api():
         name, phone, gender = post("patient_name"), re.sub(r"\D", "", post("phone")), post("gender")
         age = to_int(post("age"), -1)
         home = post("collection_type") == "Home"
+        online = post("payment") == "Online"
+        if online and not payments.enabled():
+            fail("Online payment is not available right now. Please choose pay at collection.")
         address, date, slot = post("address"), post("date"), post("slot")
         if len(name) < 2:
             fail("Please enter the patient's full name.")
@@ -259,13 +312,33 @@ def lab_api():
              "gender": gender, "gender_code": {"Male": "M", "Female": "F"}.get(gender, ""), "phone": phone[-10:],
              "collection_type": "Home Collection" if home else "Lab Visit", "address": address[:500] if home else None,
              "slot_date": date, "slot_time": slot, "items": items, "subtotal": subtotal, "collection_fee": fee,
-             "total": subtotal + fee, "payment": "Pay at collection", "fasting_hours": fasting,
+             "total": subtotal + fee, "payment": "Online" if online else "Pay at collection",
+             "payment_method": "Online" if online else "Pay at collection",
+             "payment_status": "Pending" if online else "At collection", "fasting_hours": fasting,
              "preparation": "\n".join(prep), "tat_hours": tat, "referred_by": post("referred_by")[:100],
              "notes": post("notes")[:300], "status": "Booked", "results": {}, "remarks": "", "reported_by": "",
              "created_at": now(), "updated_at": now(), "collected_at": None, "report_at": None}
         db.lab_bookings.insert_one(b)
-        background(booking_mail, b, "Booked")
-        return ok(id=bid, booking_no=booking_no, total=b["total"], fasting_hours=fasting, preparation=b["preparation"])
+        checkout, pay_error = None, ""
+        if online:
+            # the receipt mail (with the booking details) goes out once it is paid
+            try:
+                checkout = payments.start("lab", b, request.host_url)
+            except payments.PaymentError as exc:
+                pay_error = f"{exc} Your booking is kept - you can pay at collection."
+                to_pay_at_collection(b)
+        else:
+            background(booking_mail, b, "Booked")
+        return ok(id=bid, booking_no=booking_no, total=b["total"], fasting_hours=fasting, preparation=b["preparation"],
+                  checkout=checkout, pay_error=pay_error)
+
+    if action == "payLater":
+        # the patient closed the payment window and chose to pay in cash at collection
+        b = db.lab_bookings.find_one({"_id": to_int(post("id")), "user_email": email})
+        if not b:
+            fail("Booking not found", 404)
+        to_pay_at_collection(b)
+        return ok()
 
     if action == "my":
         rows = [booking_row(b) for b in db.lab_bookings.find({"user_email": email}).sort("_id", -1)]
@@ -277,6 +350,7 @@ def lab_api():
         if not b:
             fail("This booking can no longer be cancelled (the sample may already be collected).", 409)
         b["status"] = "Cancelled"
+        refund_if_paid(b)
         background(booking_mail, b, "Cancelled")
         return ok()
 
@@ -305,19 +379,26 @@ def lab_admin():
         require_perm(LAB_ADMIN_ACTIONS[action])
 
     if action == "list":
+        settle_online()
         today = today_ist()
         rows = list(db.lab_bookings.find().sort("_id", -1).limit(300))
-        all_rows = list(db.lab_bookings.find({}, {"status": 1, "slot_date": 1, "total": 1, "created_at": 1, "collected_at": 1}))
+        all_rows = list(db.lab_bookings.find({}, {"status": 1, "slot_date": 1, "total": 1, "created_at": 1, "collected_at": 1,
+                                                  "payment_status": 1, "paid_at": 1}))
         stats = {"total": len(all_rows), "booked": 0, "collected": 0, "processing": 0, "ready": 0, "cancelled": 0,
-                 "today_slots": 0, "revenue": 0, "revenue_today": 0, "revenue_month": 0, "to_collect": 0, "paid_count": 0}
+                 "today_slots": 0, "revenue": 0, "revenue_today": 0, "revenue_month": 0, "to_collect": 0, "paid_count": 0,
+                 "paid_online": 0}
         month = today[:7]
         for b in all_rows:
             amount = b.get("total", 0) or 0
-            # payment is taken when the sample is collected, so that is when a booking becomes revenue
-            if b["status"] in ("Sample Collected", "Processing", "Report Ready"):
+            online_paid = b.get("payment_status") == "Paid" and b["status"] != "Cancelled"
+            # cash is taken when the sample is collected, an online payment when it is paid:
+            # that is when a booking becomes revenue
+            if online_paid or b["status"] in ("Sample Collected", "Processing", "Report Ready"):
                 stats["revenue"] += amount
                 stats["paid_count"] += 1
-                day = b["collected_at"].astimezone(config.IST).strftime("%Y-%m-%d") if b.get("collected_at") else ""
+                stats["paid_online"] += amount if online_paid else 0
+                when = b.get("paid_at") if online_paid else b.get("collected_at")
+                day = when.astimezone(config.IST).strftime("%Y-%m-%d") if when else ""
                 stats["revenue_today"] += amount if day == today else 0
                 stats["revenue_month"] += amount if day[:7] == month else 0
             elif b["status"] == "Booked":
@@ -413,6 +494,7 @@ def lab_admin():
         if not b:
             fail("This booking is already finished or cancelled.", 409)
         b.update(status="Cancelled", cancelled_by="lab", cancel_reason=post("reason") or "Cancelled by the laboratory")
+        refund_if_paid(b)
         background(booking_mail, b, "Cancelled")
         return ok()
 

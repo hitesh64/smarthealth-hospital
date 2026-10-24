@@ -5,7 +5,7 @@
 const LB_FLOW = ['Booked', 'Sample Collected', 'Processing', 'Report Ready'];
 const LB_CART_KEY = 'smartHealthLabCart';
 const lab = { loaded: false, tests: [], categories: [], cfg: {}, cart: [], tab: 'book', cat: 'All', q: '', bookings: [],
-              mineLoaded: false, form: { collection: 'Home', date: '', slot: '' }, draft: {} };
+              mineLoaded: false, form: { collection: 'Home', date: '', slot: '', payment: 'Online' }, draft: {} };
 
 try { lab.cart = JSON.parse(localStorage.getItem(LB_CART_KEY)) || []; } catch (e) { lab.cart = []; }
 
@@ -171,6 +171,9 @@ function lbTotals() {
              homeOk: chosen.every(t => t.home) };
 }
 
+// online payment is offered when the hospital has set up Razorpay; otherwise everything is paid at collection
+function lbOnline() { return !!lab.cfg.online_enabled && lab.form.payment !== 'Collection'; }
+
 function lbSlotOk(date, slot, home) {
     if (date !== lbToday()) return true;
     const m = slot.match(/(\d+):(\d+) (AM|PM)/);
@@ -248,7 +251,8 @@ function lbDrawForm() {
     const tat = Math.max(...t.chosen.map(x => x.tat_hours));
     const scroll = bodyEl.scrollTop;
 
-    document.getElementById('lbSheetSub').textContent = `${t.chosen.length} test${t.chosen.length > 1 ? 's' : ''} · report in about ${lbHours(tat)} after the sample · pay at collection`;
+    const online = lbOnline();
+    document.getElementById('lbSheetSub').textContent = `${t.chosen.length} test${t.chosen.length > 1 ? 's' : ''} · report in about ${lbHours(tat)} after the sample · ${online ? 'pay online' : 'pay at collection'}`;
     bodyEl.innerHTML = `
         <section class="lb-step">
             <h4><span>1</span>Your tests</h4>
@@ -293,16 +297,28 @@ function lbDrawForm() {
                 <div class="lb-slots">${slots.map(s => `<button type="button" class="${f.slot === s ? 'active' : ''}" ${lbSlotOk(f.date, s, home) ? '' : 'disabled'} onclick="lab.form.slot='${s}'; lbDrawForm()">${s}</button>`).join('')}</div></div>
             ${lateForFasting ? `<p class="lb-warn"><i class="fas fa-triangle-exclamation"></i>Your tests need ${t.fasting} hours of fasting. A slot before 11 AM is easier - you can have breakfast right after.</p>` : ''}
             ${t.fasting ? `<p class="lb-prep"><i class="fas fa-utensils"></i><span><b>Fasting needed:</b> no food for ${t.fasting}-${t.fasting + 2} hours before the sample. Water is allowed.</span></p>` : ''}
-        </section>`;
+        </section>
+        ${lab.cfg.online_enabled ? `
+        <section class="lb-step">
+            <h4><span>5</span>Payment</h4>
+            <div class="lb-pay">
+                ${payMethodCard(online, "lab.form.payment='Online'; lbDrawForm()", lab.cfg.test_mode)}
+                <label class="pay-pick ${online ? '' : 'active'}"><input type="radio" name="payPick" ${online ? '' : 'checked'} onchange="lab.form.payment='Collection'; lbDrawForm()">
+                    <span class="pay-pick-icon"><i class="fas fa-money-bill-wave"></i></span>
+                    <span class="pay-pick-text"><b>Pay at collection</b><small>Cash or UPI to the ${home ? 'collector at your home' : 'lab counter'}</small></span></label>
+            </div>
+        </section>` : ''}`;
     bodyEl.scrollTop = scroll;
 
     document.getElementById('lbSheetFoot').innerHTML = `
         <div class="lb-total">
             <div><span>Tests</span><b>${lbMoney(t.subtotal)}</b></div>
             ${home ? `<div><span>Home collection</span><b>${t.fee ? lbMoney(t.fee) : 'Free'}</b></div>` : ''}
-            <div class="is-sum"><span>Total · pay at collection</span><b>${lbMoney(t.total)}</b></div>
+            <div class="is-sum"><span>Total · ${online ? 'pay online now' : 'pay at collection'}</span><b>${lbMoney(t.total)}</b></div>
         </div>
-        <button type="button" class="btn lb-book" id="lbBookBtn" onclick="lbBook()"><i class="fas fa-calendar-check"></i>Confirm booking · ${lbMoney(t.total)}</button>`;
+        <button type="button" class="btn lb-book" id="lbBookBtn" onclick="lbBook()">${online
+            ? `<i class="fas fa-lock"></i>Pay ${lbMoney(t.total)} &amp; book`
+            : `<i class="fas fa-calendar-check"></i>Confirm booking · ${lbMoney(t.total)}`}</button>`;
 }
 
 async function lbBook() {
@@ -331,7 +347,8 @@ async function lbBook() {
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Booking…';
     const fd = new FormData();
     Object.entries({ items: JSON.stringify(lab.cart), patient_name: get('lbName'), age: get('lbAge'), gender: d.lbGender,
-        phone: get('lbPhone'), collection_type: f.collection, address: home ? get('lbAddress') : '', date: f.date, slot: f.slot, referred_by: get('lbRef') })
+        phone: get('lbPhone'), collection_type: f.collection, address: home ? get('lbAddress') : '', date: f.date, slot: f.slot, referred_by: get('lbRef'),
+        payment: lbOnline() ? 'Online' : 'Collection' })
         .forEach(([k, v]) => fd.append(k, v));
     try {
         const res = await fetch('api/lab?action=book', { method: 'POST', body: fd }).then(r => r.json());
@@ -342,12 +359,16 @@ async function lbBook() {
         lab.draft.lbRef = '';
         lbSaveCart();
         lbCloseForm();
-        lbBooked(res, tests, booked);
         document.querySelector('.main-content').scrollTo(0, 0);
         lab.mineLoaded = false;
         lab.tab = 'my';
         lbTabs();
         lbLoadMine();
+        if (res.checkout) lbPayOnline(res.checkout, res, tests, booked);
+        else {
+            if (res.pay_error) shToast(res.pay_error, 'error');
+            lbBooked(res, tests, booked);
+        }
     } catch (e) {
         shToast(e.message === 'Failed to fetch' ? 'Server connection failed.' : e.message, 'error');
         if (document.getElementById('lbBookBtn')) lbDrawForm();
@@ -366,7 +387,7 @@ function lbBooked(res, tests, f) {
                 <div class="sh-details">
                     <div><i class="fas fa-vials"></i> ${shEsc(tests.join(', '))}</div>
                     <div><i class="far fa-calendar"></i> ${shEsc(nice)} · ${shEsc(f.slot)}</div>
-                    <div><i class="fas fa-indian-rupee-sign"></i> ${lbMoney(res.total)} <span>pay at collection</span></div>
+                    <div><i class="fas fa-indian-rupee-sign"></i> ${lbMoney(res.total)} <span>${res.paid ? 'paid online' : 'pay at collection'}</span></div>
                 </div>
                 ${res.preparation ? `<p class="sh-mail" style="text-align: left; white-space: pre-line;"><i class="fas fa-clipboard-list"></i> ${shEsc(res.preparation)}</p>` : ''}
                 <div class="sh-actions">
@@ -374,6 +395,27 @@ function lbBooked(res, tests, f) {
                 </div>
             </div>
         </div>`);
+}
+
+// ---------------------------------------------------------------- online payment
+// After booking: Razorpay opens. Not paid -> try again, or keep the booking and pay at collection.
+async function lbPayOnline(checkout, res, tests, booked) {
+    const r = await payOnline(checkout);
+    lbLoadMine();
+    if (r.paid) return payShowReceipt(r.receipt, { title: 'Lab test booked & paid!', done: 'View my bookings' });
+    if (r.reason !== 'closed') return;
+    const again = await shConfirm(`Payment not completed. Your booking ${checkout.ref_no} is saved — pay online now, or pay at collection instead?`,
+        { yes: 'Try again', no: 'Pay at collection' });
+    if (again) return lbPayNow(res.id);
+    await shPost('api/lab?action=payLater', { id: res.id }).catch(() => {});
+    lbLoadMine();
+    lbBooked(res, tests, booked);
+}
+
+async function lbPayNow(id) {
+    const r = await payAgain('lab', id);
+    lbLoadMine();
+    if (r.paid) payShowReceipt(r.receipt, { title: 'Payment successful', done: 'Done' });
 }
 
 // ---------------------------------------------------------------- my bookings
@@ -413,6 +455,10 @@ function lbDrawMine() {
                 <div class="ap-meta">
                     <span><i class="fas ${b.collection_type === 'Home Collection' ? 'fa-house-medical' : 'fa-hospital'}"></i>${shEsc(b.collection_type)}</span>
                     <span><i class="fas fa-indian-rupee-sign"></i>${lbMoney(b.total)}</span>
+                    ${b.payment_status === 'Paid' ? '<span class="ap-when"><i class="fas fa-circle-check"></i>Paid online</span>'
+                      : (b.payment_status === 'Refund Due' ? '<span class="lb-flagged"><i class="fas fa-rotate-left"></i>Refund in process</span>'
+                      : (b.payment_status === 'Refunded' ? '<span class="ap-when"><i class="fas fa-rotate-left"></i>Refunded</span>'
+                      : (off ? '' : `<span>${b.payment_status === 'Pending' ? 'Payment pending' : 'Pay at collection'}</span>`)))}
                     ${b.status === 'Report Ready' ? `<span class="${b.abnormal ? 'lb-flagged' : 'ap-when'}">${b.abnormal ? `${b.abnormal} value${b.abnormal > 1 ? 's' : ''} outside range` : 'All values in range'}</span>` : ''}
                     ${b.fasting_hours && b.status === 'Booked' ? `<span class="lb-flagged"><i class="fas fa-utensils"></i>${b.fasting_hours} h fasting</span>` : ''}
                 </div>
@@ -421,6 +467,8 @@ function lbDrawMine() {
             <div class="ap-side">
                 <span class="ap-status"><i class="fas ${off ? 'fa-ban' : (b.status === 'Report Ready' ? 'fa-file-circle-check' : 'fa-hourglass-half')}"></i>${shEsc(b.status)}</span>
                 ${b.status === 'Report Ready' ? `<button type="button" class="ap-btn" onclick="lbReport(${+b.id})"><i class="fas fa-file-medical"></i>View report</button>` : ''}
+                ${b.can_pay ? `<button type="button" class="ap-btn lb-pay-btn" onclick="lbPayNow(${+b.id})"><i class="fas fa-lock"></i>Pay ${lbMoney(b.total)} online</button>` : ''}
+                ${b.receipt_token ? `<a class="ap-btn" href="${payReceiptUrl(b.receipt_token)}" target="_blank" rel="noopener"><i class="fas fa-file-invoice"></i>Receipt</a>` : ''}
                 ${b.can_cancel ? `<button type="button" class="ap-btn ap-btn--danger" onclick="lbCancel(${+b.id})"><i class="fas fa-xmark"></i>Cancel</button>` : ''}
             </div>
         </article>`;
@@ -428,10 +476,12 @@ function lbDrawMine() {
 }
 
 async function lbCancel(id) {
-    if (!await shConfirm('Cancel this lab booking?', { yes: 'Yes, cancel it', danger: true })) return;
+    const b = (lab.bookings || []).find(x => x.id == id), paid = b && b.payment_status === 'Paid';
+    if (!await shConfirm(paid ? `Cancel this lab booking? Your online payment of ${lbMoney(b.total)} will be refunded automatically.` : 'Cancel this lab booking?',
+        { yes: 'Yes, cancel it', danger: true })) return;
     const res = await fetch('api/lab?action=cancel', { method: 'POST', body: new URLSearchParams({ id }) }).then(r => r.json()).catch(() => ({}));
     if (res.status !== 'success') return shToast(res.message || 'Could not cancel.', 'error');
-    shToast('Lab booking cancelled.', 'success');
+    shToast(paid ? 'Lab booking cancelled. The refund has been started - you will get an email.' : 'Lab booking cancelled.', 'success');
     lbLoadMine();
 }
 
