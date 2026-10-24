@@ -85,8 +85,19 @@ py -3.12 scripts/send_reminders.py
 
 ## Hosting (Render)
 
-The `Dockerfile` runs the app with gunicorn. The hosted server cannot reach the MongoDB on your own
-computer, so it needs an online database:
+The `Dockerfile` runs the app with gunicorn and also contains MongoDB 8.0. The hosted server cannot
+reach the MongoDB on your own computer, so there are two ways:
+
+**A. MongoDB inside the Render container** (`MONGO_URI` empty or `mongodb://localhost:27017/`)
+
+* `docker-start.sh` starts MongoDB in the container before the website.
+* Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in Render > Environment: that Super Admin is created
+  whenever the database is empty. Roles, lab tests and two ambulances are created by themselves.
+* On Render's free plan the container's disk is wiped on every restart, redeploy and sleep, so
+  patients, bookings and reports are lost. To keep them, use a paid instance and add a **persistent
+  disk** mounted at `/data` - or use option B.
+
+**B. MongoDB Atlas (data kept permanently)**
 
 1. MongoDB Atlas (free M0 cluster) > **Database Access**: add a user with a password.
 2. **Network Access**: add `0.0.0.0/0` (Render's IP addresses change).

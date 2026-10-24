@@ -40,6 +40,19 @@ def ensure_roles():
     db.admins.update_many({"role_id": {"$exists": False}}, {"$set": {"role_id": sid, "active": True}})
 
 
+def ensure_default_admin():
+    """An empty database (e.g. a new hosted server) gets its first Super Admin from ADMIN_EMAIL /
+    ADMIN_PASSWORD, so somebody can sign in to the admin panel. Nothing happens once any staff
+    login exists."""
+    from .. import config
+    if db.admins.count_documents({}) or not config.ADMIN_EMAIL or len(config.ADMIN_PASSWORD) < 8:
+        return
+    db.admins.insert_one({"_id": next_id("admins"), "name": config.ADMIN_NAME[:100], "email": norm_email(config.ADMIN_EMAIL),
+                          "password": hash_pw(config.ADMIN_PASSWORD), "role_id": super_role_id(), "active": True,
+                          "created_at": now(), "last_login": None})
+    print(f"[startup] created the first Super Admin {norm_email(config.ADMIN_EMAIL)}")
+
+
 def active_supers(exclude_id=None):
     q = {"role_id": super_role_id(), "active": {"$ne": False}}
     if exclude_id is not None:

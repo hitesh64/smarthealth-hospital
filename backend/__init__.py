@@ -36,8 +36,8 @@ def setup_database():
     MONGO_URI is right. Safe when several server workers run it at the same time."""
     from .routes.emergency import ensure_fleet
     from .routes.lab import seed_tests
-    from .routes.settings import ensure_roles
-    for step in (ensure_indexes, ensure_roles, seed_tests, ensure_fleet):
+    from .routes.settings import ensure_default_admin, ensure_roles
+    for step in (ensure_indexes, ensure_roles, ensure_default_admin, seed_tests, ensure_fleet):
         try:
             step()
         except DuplicateKeyError:

@@ -56,6 +56,12 @@ def _secret_key():
 
 SECRET_KEY = _secret_key()
 
+# --- First Super Admin: created only while the database has no staff login at all
+# (useful on a host whose database starts empty). Leave empty to create it from the admin page.
+ADMIN_EMAIL = env("ADMIN_EMAIL")
+ADMIN_PASSWORD = env("ADMIN_PASSWORD")
+ADMIN_NAME = env("ADMIN_NAME", "Administrator")
+
 # --- Email via Gmail SMTP (empty = messages are only logged in Admin > Notifications) ---
 MAIL_GMAIL_ADDRESS = env("MAIL_GMAIL_ADDRESS")
 MAIL_GMAIL_APP_PASSWORD = env("MAIL_GMAIL_APP_PASSWORD")
