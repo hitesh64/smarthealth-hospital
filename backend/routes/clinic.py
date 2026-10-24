@@ -8,7 +8,7 @@ from .. import config
 from ..db import db, next_id, now, out, out_all
 from ..mail import notify_booking_status, notify_patient, send_email
 from ..utils import (admin_can, arg, background, fail, login_session, new_token, norm_email, ok, post, require_perm,
-                     require_doctor, require_user, save_image, slot_datetime, text, to_int,
+                     remove_upload, require_doctor, require_user, save_image, slot_datetime, text, to_int,
                      today_ist, valid_email, valid_ymd)
 from .auth import check_pw, hash_pw
 
@@ -84,6 +84,8 @@ def update_doctor():
                "days": days[:100]}
     if image:
         changes["image"] = image
+        old = db.doctors.find_one({"_id": doc_id}, {"image": 1}) or {}
+        remove_upload(old.get("image"), "")
     if email:
         changes["email"] = email
     if post("password"):

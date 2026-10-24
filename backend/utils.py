@@ -253,10 +253,23 @@ def image_kind(head):
     return None
 
 
+IMAGE_MIME = {"jpg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml"}
+
+
+def store_image(data, kind, folder=""):
+    """Keeps a picture in the database (collection `images`) and returns its address "img/<id>".
+    The database is permanent, while a hosting server's disk (Render) is wiped on every deploy."""
+    from bson import Binary
+    iid = new_token()
+    db.images.insert_one({"_id": iid, "data": Binary(data), "mime": IMAGE_MIME[kind], "size": len(data),
+                          "folder": folder, "created_at": now()})
+    return f"img/{iid}"
+
+
 def save_image(field, folder, max_mb):
-    """Saves an uploaded photo under uploads/<folder>. Returns its path, '' when no file was sent and
-    None when it is not a real image (a renamed script, too large ...). The type is read from the
-    file itself, never from the name the browser sent."""
+    """Saves an uploaded photo in the database (see store_image). Returns its address, '' when no
+    file was sent and None when it is not a real image (a renamed script, too large ...). The type is
+    read from the file itself, never from the name the browser sent."""
     file = request.files.get(field)
     if not file or not file.filename:
         return ""
@@ -266,15 +279,14 @@ def save_image(field, folder, max_mb):
     ext = image_kind(data[:16])
     if not ext:
         return None
-    target = config.UPLOAD_DIR / folder if folder else config.UPLOAD_DIR
-    target.mkdir(parents=True, exist_ok=True)
-    name = f"{int(time.time())}_{new_token()}.{ext}" if not folder else f"{new_token()}.{ext}"
-    (target / name).write_bytes(data)
-    return "uploads/" + (f"{folder}/" if folder else "") + name
+    return store_image(data, ext, folder)
 
 
 def remove_upload(path, folder):
-    if path and path.startswith(f"uploads/{folder}/"):
+    """Deletes a photo that was replaced or whose medicine / doctor was deleted."""
+    if path and path.startswith("img/"):
+        db.images.delete_one({"_id": path[4:]})
+    elif path and path.startswith(f"uploads/{folder}/"):
         try:
             (config.ROOT / path).unlink()
         except OSError:

@@ -146,6 +146,22 @@ def create_app():
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         return resp
 
+    @app.get("/img/<iid>")
+    def stored_image(iid):
+        """A photo kept in the database (medicine / doctor). Its id never changes, so browsers keep it."""
+        from flask import Response
+        from .db import db
+        if not re.fullmatch(r"[0-9a-f]{32}", iid):
+            abort(404)
+        img = db.images.find_one({"_id": iid})
+        if not img:
+            abort(404)
+        resp = Response(bytes(img["data"]), mimetype=img["mime"])
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        # a picture can never run scripts, even an SVG
+        resp.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'"
+        return resp
+
     @app.get("/")
     def home():
         return send_from_directory(config.ROOT, "index.html")

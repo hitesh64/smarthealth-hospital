@@ -8,6 +8,8 @@ Only medicines that can be sold without a prescription are listed: the store has
 upload. Prices are the approximate MRP of the pack - check them against the packs you stock and
 correct them in Admin > Medicine Stock. A medicine already in the list (same name) is left as it is,
 so the script can be run again safely.
+Every medicine without a photo (also ones added by hand) gets a drawn pack picture, kept in the
+database; replace it with a real photo in Admin > Medicine Stock whenever you like.
 """
 import sys
 from datetime import date, datetime, timezone
@@ -16,6 +18,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.db import db, next_id  # noqa: E402
+from backend.med_art import pack_svg  # noqa: E402
+from backend.utils import store_image  # noqa: E402
 
 TODAY = date.today()
 
@@ -132,6 +136,16 @@ def main():
             "for_sale": 1, "image": None, "updated_at": datetime.now(timezone.utc)})
         added += 1
     print(f"Added {added} medicines ({len(MEDICINES) - added} were already there). Total now: {db.medicines.count_documents({})}")
+
+    # a pack picture for every medicine that has no photo yet
+    no_photo = {"$or": [{"image": None}, {"image": ""}, {"image": {"$exists": False}}]}
+    drawn = 0
+    for m in db.medicines.find(no_photo):
+        svg = pack_svg(m["name"], m.get("unit"), m.get("category") or "General", m.get("description") or "")
+        db.medicines.update_one({"_id": m["_id"], **no_photo},
+                                {"$set": {"image": store_image(svg.encode("utf-8"), "svg", "medicines")}})
+        drawn += 1
+    print(f"Pack pictures added: {drawn}")
 
 
 if __name__ == "__main__":
