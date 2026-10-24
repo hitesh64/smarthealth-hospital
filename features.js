@@ -165,7 +165,8 @@ function sosStartTracking() {
 function sosStopTracking() {
     clearInterval(sos.poll);
     if (sos.watch !== null) navigator.geolocation.clearWatch(sos.watch);
-    Object.assign(sos, { token: null, poll: null, watch: null, map: null, meMarker: null, ambMarker: null, routeLayers: null, fitted: false, data: null });
+    Object.assign(sos, { token: null, poll: null, watch: null, map: null, meMarker: null, ambMarker: null, routeLayers: null, fitted: false, data: null,
+                         nearby: null, nearbyAt: null, nearbyLayer: null });
     localStorage.removeItem(SOS_KEY);
     localStorage.removeItem(SOS_KEY + 'Manual');
     sos.bestAcc = null;
@@ -181,7 +182,10 @@ function sosShowTracking() {
         <div id="sosPhoneBox"></div>
         <div class="sos-accuracy" id="sosAccuracy"></div>
         <div class="sos-map" id="sosMap"></div>
-        <div class="sos-actions" id="sosActions"></div>`);
+        <div class="sos-actions" id="sosActions"></div>
+        <div class="sos-nearby" id="sosNearby"></div>`);
+    sos.nearbyAt = null;
+    sos.nearbyFitted = false;
     if (sos.data) sosRender(sos.data); else sosRefresh();
 }
 
@@ -291,12 +295,71 @@ function sosRender(data) {
         points.push(p);
         if (sos.fitted && !sos.map.getBounds().contains(p)) sos.fitted = false; // ambulance drove off screen: re-frame
     }
+    if (hasLoc && !closed) sosLoadNearby(+a.lat, +a.lng);
+    else if (closed) document.getElementById('sosNearby').innerHTML = '';
+
     if (points.length === 2 && !sos.fitted) {
         sos.map.fitBounds(points, { padding: [40, 40], maxZoom: 16 });
         sos.fitted = true;
     } else if (points.length === 1 && !sos.centred) {
         sos.map.setView(points[0], 16);
         sos.centred = true; // only once, so the caller can pan and drag the pin freely
+    }
+}
+
+// ---------------------------------------------------------------- nearby hospitals
+// Real hospitals around the caller from Google Maps (fetched by the server through SerpApi), nearest
+// first, with a call button and Google Maps directions - for when going there yourself is quicker.
+function sosLoadNearby(lat, lng) {
+    // again only when the caller has moved more than about 500 m
+    if (sos.nearbyAt && Math.abs(sos.nearbyAt[0] - lat) < 0.005 && Math.abs(sos.nearbyAt[1] - lng) < 0.005) {
+        if (sos.nearby) sosDrawNearby(sos.nearby, lat, lng);
+        return;
+    }
+    sos.nearbyAt = [lat, lng];
+    const box = document.getElementById('sosNearby');
+    box.innerHTML = '<div class="sos-nearby-head"><b><i class="fas fa-hospital"></i> Nearby hospitals</b><span>Finding hospitals around you…</span></div><div class="sos-skel"></div><div class="sos-skel"></div>';
+    fetch('api/sos?action=nearby&token=' + encodeURIComponent(sos.token)).then(r => r.json()).then(d => {
+        if (d.status !== 'success' || !d.enabled) { box.innerHTML = ''; return; }
+        sos.nearby = d.hospitals;
+        sosDrawNearby(d.hospitals, lat, lng);
+    }).catch(() => { box.innerHTML = ''; sos.nearbyAt = null; });
+}
+
+function sosDrawNearby(list, lat, lng) {
+    const box = document.getElementById('sosNearby');
+    if (!box) return;
+    if (!list.length) {
+        box.innerHTML = '<div class="sos-nearby-head"><b><i class="fas fa-hospital"></i> Nearby hospitals</b><span>No hospital found close to you. Call 108 for help.</span></div>';
+        return;
+    }
+    box.innerHTML = `<div class="sos-nearby-head"><b><i class="fas fa-hospital"></i> Nearby hospitals</b><span>From Google Maps · nearest first</span></div>
+        ${list.map((h, i) => `<div class="sos-hosp">
+            <span class="sos-hosp-n">${i + 1}</span>
+            <div class="sos-hosp-main">
+                <b>${shEsc(h.name)}</b>
+                <small>${h.km} km · ${shEsc(h.type)}${h.rating ? ` · <i class="fas fa-star"></i> ${h.rating}${h.reviews ? ` (${(+h.reviews).toLocaleString('en-IN')})` : ''}` : ''}</small>
+                ${h.open ? `<em class="${/24 hours|open/i.test(h.open) && !/closed/i.test(h.open) ? 'open' : ''}">${shEsc(h.open)}</em>` : ''}
+                <small class="sos-hosp-addr">${shEsc(h.address)}</small>
+            </div>
+            <div class="sos-hosp-go">
+                ${h.phone ? `<a href="tel:${shEsc(h.phone.replace(/[^+\d]/g, ''))}" title="Call ${shEsc(h.name)}"><i class="fas fa-phone"></i> Call</a>` : ''}
+                <a href="${shEsc(h.directions)}" target="_blank" rel="noopener" title="Directions in Google Maps"><i class="fas fa-diamond-turn-right"></i> Route</a>
+            </div>
+        </div>`).join('')}`;
+
+    // the same hospitals as pins on the map
+    if (!sos.map || typeof L === 'undefined') return;
+    if (sos.nearbyLayer) sos.nearbyLayer.remove();
+    sos.nearbyLayer = L.layerGroup(list.map((h, i) => L.marker([h.lat, h.lng], {
+        icon: L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="sos-h-pin">${i + 1}</div>` })
+    }).bindPopup(`<b>${shEsc(h.name)}</b><br>${h.km} km${h.phone ? '<br>' + shEsc(h.phone) : ''}`))).addTo(sos.map);
+    // once, while no ambulance is on its way: show the caller with the three nearest hospitals
+    if (!sos.nearbyFitted && !(sos.data && sos.data.ambulance)) {
+        sos.nearbyFitted = true;
+        const frame = [[lat, lng], ...list.slice(0, 3).map(h => [h.lat, h.lng])];
+        // after the panel has its final size, otherwise Leaflet frames the wrong area
+        setTimeout(() => { if (!sos.map) return; sos.map.invalidateSize(); sos.map.fitBounds(frame, { padding: [30, 30], maxZoom: 16 }); }, 350);
     }
 }
 

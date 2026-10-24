@@ -269,3 +269,43 @@ def locate_address(text, max_tries=4):
 def reverse_place(lat, lng):
     data = _nominatim("reverse", {"lat": f"{lat:.5f}", "lon": f"{lng:.5f}", "zoom": 18})
     return short_address(data.get("display_name")) if isinstance(data, dict) else ""
+
+
+# ---------------------------------------------------------------- nearby hospitals (SOS)
+
+def nearby_hospitals(lat, lng, limit=8):
+    """Real hospitals around a point, from Google Maps through SerpApi, nearest first. Returns None
+    when no SERPAPI_KEY is set. Results are cached for a week per ~1 km square, because the free
+    SerpApi plan allows only 250 searches a month."""
+    if not config.SERPAPI_KEY:
+        return None
+    cell_lat, cell_lng = round(lat, 2), round(lng, 2)
+    key = f"nearby:{cell_lat:.2f},{cell_lng:.2f}"
+    places = _cache_get(key)
+    if places is None:
+        try:
+            data = requests.get("https://serpapi.com/search.json", timeout=25, params={
+                "engine": "google_maps", "type": "search", "q": "hospital", "hl": "en",
+                "ll": f"@{cell_lat:.2f},{cell_lng:.2f},14z", "api_key": config.SERPAPI_KEY}).json()
+        except (requests.RequestException, ValueError) as exc:
+            print(f"[nearby] SerpApi not reachable: {exc}")
+            return []
+        if data.get("error") and "hasn't returned any results" not in data["error"]:
+            print(f"[nearby] SerpApi error: {data['error']}")  # e.g. a wrong key or no searches left
+            return []
+        places = []
+        for x in data.get("local_results") or []:
+            gps = x.get("gps_coordinates") or {}
+            types = [t.lower() for t in (x.get("types") or [x.get("type") or ""])]
+            if gps.get("latitude") is None or not any("hospital" in t for t in types):
+                continue  # clinics, labs and chemists are left out
+            plat, plng = gps["latitude"], gps["longitude"]
+            place = f"&destination_place_id={x['place_id']}" if x.get("place_id") else ""
+            places.append({"name": x.get("title"), "type": x.get("type") or "Hospital", "address": x.get("address") or "",
+                           "phone": x.get("phone") or "", "rating": x.get("rating"), "reviews": x.get("reviews"),
+                           "open": x.get("open_state") or "", "lat": plat, "lng": plng,
+                           "directions": f"https://www.google.com/maps/dir/?api=1&destination={plat},{plng}{place}"})
+        _cache_put(key, places)
+    rows = [{**p, "km": round(distance_km(lat, lng, p["lat"], p["lng"]), 1)} for p in places]
+    rows.sort(key=lambda p: p["km"])
+    return rows[:limit]

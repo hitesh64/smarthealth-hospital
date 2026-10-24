@@ -93,6 +93,11 @@ py -3.12 scripts/send_reminders.py
 
 ## Ambulance routes
 
+* SOS also lists the real hospitals nearest to the caller (Google Maps through SerpApi, `SERPAPI_KEY`),
+  with distance, rating, open hours, a call button and Google Maps directions. Results are cached for a
+  week per ~1 km square because the free SerpApi plan has 250 searches a month; only an open SOS alert
+  can ask, so the searches cannot be used up from outside.
+
 * The hospital's fixed point is `HOSPITAL_LAT` / `HOSPITAL_LNG` (default: Cross Road B, MIDC,
   Andheri East, Mumbai 400096).
 * The patient sets the pickup point by GPS, address search (OpenStreetMap Nominatim) or by tapping /

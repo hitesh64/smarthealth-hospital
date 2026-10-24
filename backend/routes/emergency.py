@@ -12,8 +12,8 @@ from flask import Blueprint, jsonify, request, session
 from .. import config
 from ..db import db, next_id, now, out
 from ..mail import send_email
-from ..routing import (advance_simulation, gps_is_fresh, hospital, locate_address, park_at_hospital, plan_route, progress,
-                       reverse_place, road_route, route_summary, search_places)
+from ..routing import (advance_simulation, gps_is_fresh, hospital, locate_address, nearby_hospitals, park_at_hospital, plan_route,
+                       progress, reverse_place, road_route, route_summary, search_places)
 from ..utils import (admin_can, arg, background, distance_km, fail, new_token, ok, post, require_perm, to_float, to_int,
                      too_soon, valid_coords)
 
@@ -385,6 +385,16 @@ def sos_api():
         if not a:
             fail("Alert not found", 404)
         return jsonify(alert_view(a))
+
+    if action == "nearby":
+        # only for an open alert, so nobody can use up the SerpApi searches from outside
+        a = db.sos_alerts.find_one({"token": arg("token"), "status": {"$in": OPEN_SOS}})
+        if not a:
+            fail("Alert not found", 404)
+        if a.get("lat") is None:
+            return ok(hospitals=[], enabled=bool(config.SERPAPI_KEY), need_location=True)
+        rows = nearby_hospitals(a["lat"], a["lng"])
+        return ok(hospitals=rows or [], enabled=rows is not None)
 
     if action == "updateLocation":
         lat, lng, token = coord("lat"), coord("lng"), post("token")

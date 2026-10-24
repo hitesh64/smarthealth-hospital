@@ -46,6 +46,7 @@ function renderLab() {
         if (['Sample Collected', 'Processing'].includes(b.status)) actions += `<button class="btn btn--sm btn--success" onclick="openLabResults(${b.id})"><i class="fas fa-keyboard"></i> Enter results</button>`;
         if (b.status === 'Report Ready') actions += `<button class="btn btn--sm btn--outline" onclick="previewLabReport(${b.id})"><i class="fas fa-file-medical"></i> Report</button>
             <button class="btn btn--sm btn--outline" onclick="openLabResults(${b.id})" title="Correct results"><i class="fas fa-pen"></i></button>`;
+        actions += `<button class="btn btn--sm btn--outline" onclick="labBill(${b.id})" title="Bill"><i class="fas fa-file-invoice"></i> Bill</button>`;
         if (['Booked', 'Sample Collected', 'Processing'].includes(b.status)) actions += `<button class="btn btn--sm btn--danger-soft" onclick="cancelLab(${b.id})">Cancel</button>`;
         return `<tr>
             <td><span class="cell-strong">${afEsc(b.booking_no)}</span><br><small>${afEsc(String(b.created_at).slice(0, 16))}</small></td>
@@ -75,6 +76,93 @@ async function cancelLab(id) {
 }
 
 function closeLabModal(id) { document.getElementById(id).style.display = 'none'; }
+
+// ---------------------------------------------------------------- bill
+// What the booking costs and how it is paid: online (Razorpay), in cash at collection, still due, or refunded.
+function labPayState(b) {
+    const ps = b.payment_status, collected = ['Sample Collected', 'Processing', 'Report Ready'].includes(b.status);
+    if (ps === 'Paid') return { label: 'PAID ONLINE', tone: 'paid', text: `Paid online${b.payment_detail ? ' by ' + b.payment_detail : ''}` };
+    if (ps === 'Refunded') return { label: 'REFUNDED', tone: 'off', text: 'Online payment refunded' };
+    if (ps === 'Refund Due') return { label: 'REFUND DUE', tone: 'off', text: 'Online payment - refund in process' };
+    if (b.status === 'Cancelled') return { label: 'CANCELLED', tone: 'off', text: 'Booking cancelled - nothing to pay' };
+    if (collected) return { label: 'PAID', tone: 'paid', text: 'Collected at sample collection (cash / UPI)' };
+    return { label: 'DUE', tone: 'due', text: ps === 'Pending' ? 'Online payment not completed - collect at sample collection' : 'To be collected at sample collection' };
+}
+
+function labBillHtml(b) {
+    const lab = labInfo || {}, pay = labPayState(b), rs = v => '₹' + (+v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const row = (a, v, cls) => `<tr class="${cls || ''}"><td>${a}</td><td>${v}</td></tr>`;
+    return `<div class="lb-bill">
+        <div class="lb-bill-head"><div><b>${afEsc(lab.name || 'Laboratory')}</b><small>${afEsc(lab.address || '')}${lab.phone ? ' · ' + afEsc(lab.phone) : ''}</small></div>
+            <div class="lb-bill-no"><span>LAB BILL</span><b>${afEsc(b.receipt_no || b.booking_no)}</b></div></div>
+        <span class="lb-bill-stamp ${pay.tone}">${pay.label}</span>
+        <div class="lb-bill-grid">
+            <div><small>Patient</small><b>${afEsc(b.patient_name)}</b> · ${afEsc(b.age)} ${afEsc((b.gender || '')[0] || '')}<br>${afEsc(b.phone)}<br>${afEsc(b.user_email)}</div>
+            <div><small>Booking</small><b>${afEsc(b.booking_no)}</b><br>Booked ${afEsc(String(b.created_at).slice(0, 16))}<br>${afEsc(b.collection_type)} · ${afEsc(b.slot_date)} ${afEsc(b.slot_time)}</div>
+            ${b.referred_by ? `<div><small>Referred by</small>${afEsc(b.referred_by)}</div>` : ''}
+            ${b.address ? `<div><small>Collection address</small>${afEsc(b.address)}</div>` : ''}
+        </div>
+        <table class="lb-bill-table"><thead><tr><th>Test</th><th>Amount</th></tr></thead><tbody>
+            ${b.items.map(i => row(`<b>${afEsc(i.name)}</b>${i.is_package ? `<small>${afEsc(i.components.join(', '))}</small>` : ''}`, rs(i.price))).join('')}
+            ${row('Tests', rs(b.subtotal ?? b.items.reduce((s, i) => s + (+i.price || 0), 0)), 'line')}
+            ${b.collection_type === 'Home Collection' ? row('Home collection charge', +b.collection_fee ? rs(b.collection_fee) : 'Free', 'line') : ''}
+            ${row(pay.tone === 'due' ? 'Total to collect' : 'Total', rs(b.total), 'sum')}
+        </tbody></table>
+        <div class="lb-bill-pay ${pay.tone}"><i class="fas ${pay.tone === 'paid' ? 'fa-circle-check' : (pay.tone === 'due' ? 'fa-clock' : 'fa-rotate-left')}"></i> ${afEsc(pay.text)}
+            ${b.payment_ref ? `<br><small>Payment ID ${afEsc(b.payment_ref)}${b.paid_at ? ' · ' + afEsc(String(b.paid_at).slice(0, 16)) : ''}${b.refund_id ? ' · Refund ID ' + afEsc(b.refund_id) : ''}</small>` : ''}</div>
+        <p class="lb-bill-foot">Computer-generated bill. ${b.receipt_token ? 'Online receipt: receipt.html?t=' + afEsc(b.receipt_token) : ''}</p>
+    </div>`;
+}
+
+function labBill(id) {
+    const b = labRows.find(x => x.id === id);
+    if (!b) return;
+    document.getElementById('labBillBox')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="sh-success" id="labBillBox" onclick="if (event.target === this) this.remove()">
+        <div class="sh-success-card lb-bill-card">${labBillHtml(b)}
+            <div class="sh-actions">
+                <button class="ghost" onclick="document.getElementById('labBillBox').remove()">Close</button>
+                ${b.receipt_token ? `<button class="ghost" onclick="window.open('receipt.html?t=${encodeURIComponent(b.receipt_token)}', '_blank', 'noopener')"><i class="fas fa-receipt"></i> Online receipt</button>` : ''}
+                <button onclick="labPrintBill(${b.id})"><i class="fas fa-print"></i> Print</button>
+            </div></div></div>`);
+}
+
+function labPrintBill(id) {
+    const b = labRows.find(x => x.id === id);
+    const w = window.open('', '_blank');
+    if (!b || !w) return shToast('Please allow pop-ups to print the bill.', 'error');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Lab bill ${afEsc(b.booking_no)}</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        <style>${LAB_BILL_CSS} body { background: #fff; padding: 24px; } .lb-bill { max-width: 720px; margin: 0 auto; }</style></head>
+        <body>${labBillHtml(b)}<script>setTimeout(() => print(), 400);<\/script></body></html>`);
+    w.document.close();
+}
+
+// bill styles (also used in the printed copy)
+const LAB_BILL_CSS = `
+.lb-bill-card { max-width: 640px; text-align: left; max-height: calc(100vh - 28px); overflow-y: auto; }
+.lb-bill { position: relative; font: 400 13.5px/1.5 Inter, "Segoe UI", sans-serif; color: #0f172a; text-align: left; }
+.lb-bill-head { display: flex; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #0f766e, #0d9488); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.lb-bill-head b { display: block; font-size: 16px; } .lb-bill-head small { opacity: .85; font-size: 11.5px; }
+.lb-bill-no { text-align: right; } .lb-bill-no span { display: block; font-size: 11px; letter-spacing: 2px; opacity: .85; }
+.lb-bill-stamp { position: absolute; right: 14px; top: 92px; transform: rotate(-10deg); padding: 3px 12px; border: 3px solid; border-radius: 8px; font-weight: 800; letter-spacing: 2px; font-size: 14px; }
+.lb-bill-stamp.paid { color: #16a34a; } .lb-bill-stamp.due { color: #d97706; } .lb-bill-stamp.off { color: #dc2626; }
+.lb-bill-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; margin: 16px 0 10px; }
+.lb-bill-grid small { display: block; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
+.lb-bill-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; }
+.lb-bill-table th { text-align: left; font-size: 11.5px; color: #64748b; padding: 7px 0; border-bottom: 1px solid #e2e8f0; }
+.lb-bill-table td { padding: 8px 0; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.lb-bill-table th:last-child, .lb-bill-table td:last-child { text-align: right; white-space: nowrap; }
+.lb-bill-table td small { display: block; color: #64748b; font-size: 11.5px; }
+.lb-bill-table tr.line td { border: 0; padding: 4px 0; color: #475569; }
+.lb-bill-table tr.sum td { border-top: 2px solid #0f172a; border-bottom: 0; padding-top: 10px; font-size: 16px; font-weight: 800; }
+.lb-bill-pay { padding: 10px 12px; border-radius: 10px; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.lb-bill-pay.paid { background: #f0fdf4; color: #166534; } .lb-bill-pay.due { background: #fffbeb; color: #92400e; } .lb-bill-pay.off { background: #fef2f2; color: #991b1b; }
+.lb-bill-pay small { font-weight: 400; }
+.lb-bill-foot { margin-top: 10px; color: #94a3b8; font-size: 11.5px; }
+.lb-bill-card .sh-actions { margin-top: 14px; }
+@media (max-width: 560px) { .lb-bill-grid { grid-template-columns: 1fr; } .lb-bill-stamp { top: 120px; } }`;
+document.head.insertAdjacentHTML('beforeend', `<style>${LAB_BILL_CSS}</style>`);
 
 // ---------------------------------------------------------------- result entry
 // One test at a time: the tests are listed on the left with how much is filled in, the chosen test's

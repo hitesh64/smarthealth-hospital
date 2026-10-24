@@ -124,6 +124,9 @@ DELIVERY_OTP_MAX_TRIES = 5
 # --- AI Symptom Checker: Google Gemini API key (empty = the checker is switched off) ---
 GEMINI_API_KEY = env("GEMINI_API_KEY")
 
+# --- SerpApi key: real nearby hospitals from Google Maps on the SOS screen (empty = list hidden) ---
+SERPAPI_KEY = env("SERPAPI_KEY")
+
 # --- Laboratory ---
 LAB_HOME_COLLECTION_FEE = env_int("LAB_HOME_COLLECTION_FEE", 100)
 LAB_FREE_COLLECTION_ABOVE = env_int("LAB_FREE_COLLECTION_ABOVE", 999)

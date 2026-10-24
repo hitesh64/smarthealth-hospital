@@ -43,6 +43,29 @@
 .sos-accuracy.poor { color: #92400e; background: #fffbeb; border: 1px solid #fde68a; padding: 9px 12px; }
 .sos-map { height: 260px; border-radius: 10px; margin: 10px 0; background: #e2e8f0; }
 .sos-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* nearby hospitals from Google Maps */
+.sos-nearby { text-align: left; margin-top: 14px; }
+.sos-nearby:empty { display: none; }
+.sos-nearby-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 10px 0 6px; border-top: 1px solid #e2e8f0; }
+.sos-nearby-head b { color: #0f172a; font-size: 15px; } .sos-nearby-head b i { color: #dc2626; margin-right: 4px; }
+.sos-nearby-head span { color: #64748b; font-size: 12px; }
+.sos-hosp { display: flex; gap: 10px; align-items: flex-start; padding: 10px; margin-bottom: 8px; border: 1px solid #e2e8f0; border-radius: 10px; }
+.sos-hosp-n { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #2563eb; color: #fff; font: 700 12px/24px var(--font, sans-serif); text-align: center; }
+.sos-hosp-main { flex: 1; min-width: 0; }
+.sos-hosp-main b { display: block; font-size: 14px; line-height: 1.3; }
+.sos-hosp-main small { display: block; color: #475569; font-size: 12px; }
+.sos-hosp-main small .fa-star { color: #f59e0b; font-size: 10px; }
+.sos-hosp-main em { display: inline-block; margin: 3px 0 2px; padding: 1px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; font: 600 11px var(--font, sans-serif); font-style: normal; }
+.sos-hosp-main em.open { background: #dcfce7; color: #166534; }
+.sos-hosp-addr { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sos-hosp-go { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.sos-hosp-go a { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 76px; padding: 7px 10px; border-radius: 8px; border: 1px solid #cbd5e1; color: #0f172a; font: 600 12px var(--font, sans-serif); text-decoration: none; }
+.sos-hosp-go a:first-child { background: #16a34a; border-color: #16a34a; color: #fff; }
+.sos-hosp-go a:only-child { background: #fff; border-color: #cbd5e1; color: #0f172a; }
+.sos-skel { height: 64px; margin-bottom: 8px; border-radius: 10px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: sosSkel 1.2s infinite; }
+@keyframes sosSkel { to { background-position: -200% 0; } }
+.sos-h-pin { width: 26px; height: 26px; border-radius: 50%; background: #2563eb; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); color: #fff; font: 700 12px/22px sans-serif; text-align: center; }
 .sos-actions > * {
     flex: 1; min-width: 120px; padding: 12px 10px; border-radius: 8px; border: 1px solid #cbd5e1;
     background: #fff; color: #0f172a; font: 600 14px var(--font, sans-serif); cursor: pointer; text-decoration: none;
