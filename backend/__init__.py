@@ -3,9 +3,12 @@
 The web pages (index.html, admin.html, doctor.html, driver.html and their css / js) are served from
 the project folder; everything under /api/ is answered by the blueprints in backend/routes.
 """
+import re
+import time
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, send_from_directory
+from pymongo.errors import ConnectionFailure, ConfigurationError, DuplicateKeyError, OperationFailure, ServerSelectionTimeoutError
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -16,6 +19,42 @@ from .utils import ApiError, text
 # Only these files are served to browsers. Python code, .env, database exports etc. never are.
 PUBLIC_EXT = {".html", ".css", ".js", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2"}
 PUBLIC_DIRS = {"", "assets", "uploads", "uploads/medicines"}
+
+
+DB_ERRORS = (ServerSelectionTimeoutError, ConnectionFailure, ConfigurationError, OperationFailure)
+_setup = {"done": False, "next_try": 0.0, "error": ""}
+
+
+def safe_uri():
+    """MONGO_URI without the password, for logs and the health page."""
+    return re.sub(r"//([^:/@]+):[^@]*@", lambda m: "//" + m.group(1) + ":****@", config.MONGO_URI)
+
+
+def setup_database():
+    """Indexes and the starting data (roles, lab tests, ambulances). Runs at start-up and, if the
+    database was not reachable then, again on a later request, so the site heals itself once
+    MONGO_URI is right. Safe when several server workers run it at the same time."""
+    from .routes.emergency import ensure_fleet
+    from .routes.lab import seed_tests
+    from .routes.settings import ensure_roles
+    for step in (ensure_indexes, ensure_roles, seed_tests, ensure_fleet):
+        try:
+            step()
+        except DuplicateKeyError:
+            pass  # another worker inserted the same starting data a moment earlier
+    _setup.update(done=True, error="")
+
+
+def try_setup():
+    if _setup["done"] or time.time() < _setup["next_try"]:
+        return
+    _setup["next_try"] = time.time() + 30
+    try:
+        setup_database()
+        print(f"[startup] MongoDB ready at {safe_uri()}")
+    except Exception as exc:
+        _setup["error"] = str(exc)[:300]
+        print(f"[startup] MongoDB is not reachable at {safe_uri()}: {exc}")
 
 
 def create_app():
@@ -34,6 +73,25 @@ def create_app():
     def secure_cookie_on_https():
         from flask import request
         app.config["SESSION_COOKIE_SECURE"] = request.scheme == "https"
+        if request.path.startswith("/api/"):
+            try_setup()
+
+    @app.get("/api/health")
+    def health():
+        """Shows whether the server can reach its database (open it in the browser after a deploy)."""
+        from .db import db
+        try:
+            db.command("ping")
+            try_setup()
+            counts = {c: db[c].estimated_document_count() for c in ("admins", "users", "doctors", "lab_tests", "roles")}
+            return jsonify({"status": "ok", "database": "connected", "mongo": safe_uri(), "db_name": config.MONGO_DB,
+                            "setup_done": _setup["done"], "documents": counts})
+        except Exception as exc:
+            from .db import INIT_ERROR
+            return jsonify({"status": "error", "database": "not connected", "mongo": safe_uri(), "db_name": config.MONGO_DB,
+                            "detail": (INIT_ERROR or str(exc))[:300],
+                            "fix": "Set MONGO_URI (e.g. a MongoDB Atlas mongodb+srv:// link) in the hosting environment "
+                                   "and allow the server's IP in Atlas > Network Access."}), 503
 
     from .routes import admin, ai, auth, clinic, emergency, lab, settings, store
     for module in (auth, clinic, admin, store, ai, emergency, lab, settings):
@@ -51,6 +109,17 @@ def create_app():
         if request.path.startswith("/api/"):
             return jsonify({"status": "error", "message": err.description or err.name}), err.code
         return err
+
+    def database_error(err):
+        from flask import request
+        print(f"[db] {type(err).__name__}: {err}")
+        if request.path.startswith("/api/"):
+            return jsonify({"status": "error", "database": False,
+                            "message": "The hospital database is not reachable right now. Please try again in a minute."}), 503
+        return "Database not reachable", 503
+
+    for exc_class in DB_ERRORS:
+        app.register_error_handler(exc_class, database_error)
 
     @app.errorhandler(Exception)
     def server_error(err):
@@ -88,14 +157,5 @@ def create_app():
         return send_from_directory(config.ROOT, p.as_posix())
 
     with app.app_context():
-        try:
-            ensure_indexes()
-            from .routes.settings import ensure_roles
-            ensure_roles()
-            from .routes.lab import seed_tests
-            seed_tests()
-            from .routes.emergency import ensure_fleet
-            ensure_fleet()
-        except Exception as exc:
-            print(f"[startup] MongoDB is not reachable at {config.MONGO_URI}: {exc}")
+        try_setup()
     return app

@@ -25,12 +25,15 @@ function labOpen(tab) {
     if (!lab.loaded) {
         document.getElementById('lab-body').innerHTML = '<div class="lb-skeleton"></div><div class="lb-skeleton"></div>';
         fetch('api/lab?action=tests').then(r => r.json()).then(d => {
-            if (d.status !== 'success') throw new Error();
+            if (d.status !== 'success') throw new Error(d.message || '');
             Object.assign(lab, { loaded: true, tests: d.tests, categories: d.categories, cfg: d });
             lab.cart = lab.cart.filter(c => lbTest(c));
             lbDraw();
-        }).catch(() => {
-            document.getElementById('lab-body').innerHTML = '<div class="ap-empty"><span class="ap-empty-art"><i class="fas fa-triangle-exclamation"></i></span><b>Could not load the lab tests</b>Please check your connection and open this page again.</div>';
+        }).catch(e => {
+            // the server says why (e.g. its database is not reachable); otherwise it is the connection
+            const why = e && e.message && e.message !== 'Failed to fetch' && !/JSON/.test(e.message) ? e.message : 'Please check your connection and open this page again.';
+            document.getElementById('lab-body').innerHTML = `<div class="ap-empty"><span class="ap-empty-art"><i class="fas fa-triangle-exclamation"></i></span><b>Could not load the lab tests</b>${shEsc(why)}
+                <button type="button" class="ap-btn" onclick="labOpen()"><i class="fas fa-rotate"></i>Try again</button></div>`;
         });
     } else {
         lbDraw();

@@ -10,7 +10,16 @@ from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
 
 from . import config
 
-client = MongoClient(config.MONGO_URI, tz_aware=True, tzinfo=timezone.utc, serverSelectionTimeoutMS=8000)
+# A wrong MONGO_URI must not stop the website from starting: the pages still load, the API answers
+# "database not reachable", and /api/health shows the reason.
+INIT_ERROR = ""
+try:
+    client = MongoClient(config.MONGO_URI, tz_aware=True, tzinfo=timezone.utc, serverSelectionTimeoutMS=8000, connect=False)
+except Exception as exc:  # e.g. a mongodb+srv:// name that does not exist, or a typo in the link
+    INIT_ERROR = f"MONGO_URI could not be used: {exc}"
+    print(f"[db] {INIT_ERROR}")
+    client = MongoClient("mongodb://database-not-configured.invalid:27017", tz_aware=True, tzinfo=timezone.utc,
+                         serverSelectionTimeoutMS=2000, connect=False)
 db = client[config.MONGO_DB]
 
 

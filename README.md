@@ -85,5 +85,20 @@ py -3.12 scripts/send_reminders.py
 
 ## Hosting (Render)
 
-The `Dockerfile` runs the app with gunicorn. Use MongoDB Atlas for `MONGO_URI` and set the other
-values from `.env.example` under Environment. Uploaded photos are kept on the container disk.
+The `Dockerfile` runs the app with gunicorn. The hosted server cannot reach the MongoDB on your own
+computer, so it needs an online database:
+
+1. MongoDB Atlas (free M0 cluster) > **Database Access**: add a user with a password.
+2. **Network Access**: add `0.0.0.0/0` (Render's IP addresses change).
+3. **Connect > Drivers**: copy the `mongodb+srv://...` link and put the user's password in it.
+4. Render > the service > **Environment**: `MONGO_URI` = that link, `MONGO_DB` = `hospital_db`,
+   `SECRET_KEY` = any long random text, plus the other values from `.env.example`. Save (it redeploys).
+5. Open `https://<your-site>/api/health` - it must say `"database": "connected"`. If not, its
+   `detail` says why (wrong password, IP not allowed, typo in the link).
+6. Copy this computer's data (admins, roles, doctors, patients, lab tests ...) to Atlas:
+
+   ```bash
+   py -3.12 scripts/copy_database.py
+   ```
+
+Uploaded photos are kept on the container disk and are lost when Render rebuilds it.
