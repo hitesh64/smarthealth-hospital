@@ -19,6 +19,8 @@ from .utils import ApiError, text
 # Only these files are served to browsers. Python code, .env, database exports etc. never are.
 PUBLIC_EXT = {".html", ".css", ".js", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2"}
 PUBLIC_DIRS = {"", "assets", "uploads", "uploads/medicines"}
+# Project files that have a public extension but are not part of the website.
+PRIVATE_FILES = {"server.js"}
 
 
 DB_ERRORS = (ServerSelectionTimeoutError, ConnectionFailure, ConfigurationError, OperationFailure)
@@ -171,6 +173,7 @@ def create_app():
         p = Path(filename)
         folder = p.parent.as_posix().strip(".")
         if (p.suffix.lower() not in PUBLIC_EXT or folder not in PUBLIC_DIRS
+                or p.as_posix().lower() in PRIVATE_FILES
                 or any(part.startswith(".") for part in p.parts) or ".." in p.parts):
             abort(404)
         return send_from_directory(config.ROOT, p.as_posix())

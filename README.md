@@ -19,6 +19,9 @@ Patient website, admin panel, doctor portal and ambulance driver page for a hosp
    py -3.12 app.py
    ```
 
+   Or with Node.js installed: `npm start` (runs `server.js`, which starts `app.py`; works from any
+   folder inside the project).
+
    Admin panel: http://localhost:5000/admin.html · Doctor portal: http://localhost:5000/doctor.html
 
 ### Moving the old MySQL data

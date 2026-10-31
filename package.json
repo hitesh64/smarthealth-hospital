@@ -1,0 +1,15 @@
+{
+  "name": "smarthealth-hospital",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartHealth Hospital website (Python Flask + MongoDB). npm start runs app.py.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node -e \"process.env.FLASK_DEBUG='1'; require('./server.js')\"",
+    "install-python": "py -3 -m pip install -r requirements.txt || python3 -m pip install -r requirements.txt"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
