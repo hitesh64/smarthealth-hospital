@@ -189,6 +189,20 @@
 .rx-item pre { white-space: pre-wrap; font-family: inherit; font-size: .92rem; line-height: 1.55; color: var(--ink); padding: 10px 14px; border-radius: 10px; background: var(--bg-page); border: 1px dashed var(--border); }
 .rx-advice { margin-top: 10px; font-size: .84rem; color: #115e59; }
 .rx-advice i { margin-right: 6px; }
+
+/* lab reports on the health card */
+.hc-lab-note { margin: -6px 0 14px; font-size: .84rem; color: var(--ink-soft); }
+.hc-lab-note i { margin-right: 6px; color: var(--brand); }
+.hc-lab-item .ap-btn { margin-top: 10px; }
+.hc-lab-flags { margin: 0; padding: 8px 12px 8px 28px; border-radius: 10px; background: rgba(220,38,38,.07); border: 1px solid rgba(220,38,38,.18); font-size: .88rem; line-height: 1.7; }
+.hc-lab-flags small { color: var(--ink-soft); }
+.hc-lab-flag { font-size: .75rem; font-weight: 700; color: #b91c1c; }
+.hc-lab-ok { font-size: .88rem; font-weight: 600; color: #15803d; }
+.hc-lab-ok i { margin-right: 6px; }
+.hc-lab-pending { margin-top: 16px; padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--border); font-size: .86rem; }
+.hc-lab-pending b i { margin-right: 6px; color: var(--amber, #d97706); }
+.hc-lab-pending div { margin-top: 4px; color: var(--ink); }
+.hc-lab-pending span { margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700; color: #b45309; background: rgba(217,119,6,.12); }
 .token-chip {
     display: inline-block; background: var(--brand); color: #fff; font-weight: 700;
     padding: 2px 10px; border-radius: 12px; font-size: .85rem; margin-left: 5px;

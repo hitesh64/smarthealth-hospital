@@ -247,6 +247,11 @@ def patient_api():
         return ok()
     if action == "prescriptions":
         return ok(prescriptions=prescriptions_of(email))
+    if action == "labReports":
+        # the same lab reports a doctor sees after scanning this patient's card
+        from .lab import lab_info, pending_for_doctor, reports_for_doctor
+        u = db.users.find_one({"email": email}, {"name": 1}) or {}
+        return ok(lab_reports=reports_for_doctor(email, u.get("name")), lab_pending=pending_for_doctor(email), lab=lab_info())
     fail("Unknown action", 404)
 
 
@@ -264,7 +269,7 @@ def prescriptions_of(email):
 # ---------------------------------------------------------------- doctor dashboard
 
 def patient_record(user):
-    from .lab import reports_for_doctor
+    from .lab import lab_info, pending_for_doctor, reports_for_doctor
     email = user["email"]
     visits = with_doctor(db.bookings.find({"user_id": email}).sort([("appointment_date", -1), ("_id", -1)]))
     return {
@@ -273,7 +278,9 @@ def patient_record(user):
                                               "conditions", "emergency_contact")},
         "prescriptions": prescriptions_of(email),
         "visits": [{k: v.get(k) for k in ("id", "appointment_date", "time_slot", "status", "token_no", "doctor_name", "specialization")} for v in visits],
-        "lab_reports": reports_for_doctor(email),
+        "lab_reports": reports_for_doctor(email, user.get("name")),
+        "lab_pending": pending_for_doctor(email),
+        "lab": lab_info(),
     }
 
 

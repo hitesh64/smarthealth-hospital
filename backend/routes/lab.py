@@ -134,14 +134,45 @@ def booking_row(b, admin=False):
     return row
 
 
-def reports_for_doctor(email):
-    """Finished lab reports of a patient, for the doctor's patient record."""
+def lab_info():
+    return {"name": f"{config.HOSPITAL_NAME} Laboratory", "address": config.HOSPITAL_ADDRESS, "phone": config.HOSPITAL_PHONE}
+
+
+def _name_key(name):
+    return " ".join(str(name or "").casefold().split())
+
+
+def same_person(card_name, report_name):
+    """True when a report's patient name matches the card holder (one name may be shorter, e.g. no surname)."""
+    a, b = _name_key(card_name), _name_key(report_name)
+    return not a or not b or a == b or a.startswith(b + " ") or b.startswith(a + " ")
+
+
+def reports_for_doctor(email, holder_name=""):
+    """Finished lab reports of a patient's account, newest first, with everything the full report
+    needs. A test booked for a family member from the same account is marked `other_person`."""
     rows = []
     for b in db.lab_bookings.find({"user_email": email, "status": "Report Ready"}).sort("_id", -1).limit(20):
         sections = report_sections(b)
-        rows.append({"id": b["_id"], "booking_no": b.get("booking_no"), "report_at": out(b).get("report_at"),
-                     "tests": [s["name"] for s in sections], "remarks": b.get("remarks"), "sections": sections,
-                     "abnormal": sum(1 for s in sections for r in s["rows"] if r["flag"])})
+        v = out(b)
+        flagged = [{"test": s["name"], "name": r["name"], "value": r["value"], "unit": r["unit"], "flag": r["flag"], "ref": r["ref"]}
+                   for s in sections for r in s["rows"] if r["flag"]]
+        rows.append({"id": b["_id"], "booking_no": b.get("booking_no"), "report_at": v.get("report_at"),
+                     "collected_at": v.get("collected_at"), "patient_name": b.get("patient_name", ""), "age": b.get("age"),
+                     "gender": b.get("gender", ""), "referred_by": b.get("referred_by", ""), "reported_by": b.get("reported_by", ""),
+                     "remarks": b.get("remarks", ""), "tests": [s["name"] for s in sections], "report": sections,
+                     "flagged": flagged, "abnormal": len(flagged),
+                     "other_person": not same_person(holder_name, b.get("patient_name"))})
+    return rows
+
+
+def pending_for_doctor(email):
+    """Lab tests of the account that are booked or still in the lab (no report yet)."""
+    rows = []
+    for b in db.lab_bookings.find({"user_email": email, "status": {"$in": FLOW[:-1]}}).sort("_id", -1).limit(10):
+        rows.append({"id": b["_id"], "booking_no": b.get("booking_no"), "status": b["status"], "slot_date": b.get("slot_date"),
+                     "patient_name": b.get("patient_name", ""),
+                     "tests": [c["name"] for i in b.get("items", []) for c in i.get("components", [])]})
     return rows
 
 
@@ -238,7 +269,7 @@ def lab_api():
                   home_fee=config.LAB_HOME_COLLECTION_FEE, free_above=config.LAB_FREE_COLLECTION_ABOVE,
                   home_slots=HOME_SLOTS, lab_slots=LAB_SLOTS, days_ahead=BOOK_DAYS_AHEAD,
                   online_enabled=payments.enabled(), test_mode=payments.test_mode(),
-                  lab={"name": f"{config.HOSPITAL_NAME} Laboratory", "address": config.HOSPITAL_ADDRESS, "phone": config.HOSPITAL_PHONE})
+                  lab=lab_info())
 
     email = require_user()
     settle_online(email)

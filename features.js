@@ -385,6 +385,7 @@ if (sos.token) sosStartTracking();
 // SMART PATIENT QR CARD
 // =====================================================================
 let healthCard = null;
+let hcLab = { lab_reports: [], lab_pending: [], lab: null };
 
 function loadHealthCard() {
     const box = document.getElementById('healthcard-body');
@@ -392,8 +393,10 @@ function loadHealthCard() {
 
     Promise.all([
         fetch('api/patient?action=card').then(r => r.json()),
-        fetch('api/patient?action=prescriptions').then(r => r.json())
-    ]).then(([cardRes, rxRes]) => {
+        fetch('api/patient?action=prescriptions').then(r => r.json()),
+        // the same lab reports the doctor sees after scanning the card
+        fetch('api/patient?action=labReports').then(r => r.json()).catch(() => ({}))
+    ]).then(([cardRes, rxRes, labRes]) => {
         if (cardRes.status !== 'success') {
             // No server session (e.g. logged in before this feature existed)
             box.innerHTML = `<div class="ap-empty"><span class="ap-empty-art"><i class="fas fa-lock"></i></span><b>Please log in again</b>
@@ -402,6 +405,7 @@ function loadHealthCard() {
             return;
         }
         healthCard = cardRes.card;
+        hcLab = labRes.status === 'success' ? labRes : { lab_reports: [], lab_pending: [], lab: null };
         hcRender(healthCard, rxRes.prescriptions || []);
     }).catch(() => {
         box.innerHTML = '<div class="ap-empty"><span class="ap-empty-art"><i class="fas fa-triangle-exclamation"></i></span><b>Could not load your health card</b>Please try again.</div>';
@@ -437,12 +441,13 @@ function hcRender(c, rx) {
                                 <div class="hc-facts">
                                     <span class="is-blood"><small>Blood</small><b>${shEsc(c.blood || '—')}</b></span>
                                     <span><small>Age</small><b>${shEsc(c.age || '—')}</b></span>
+                                    <span title="Lab reports the doctor sees"><small>Reports</small><b>${hcLab.lab_reports.length}</b></span>
                                 </div>
                                 <div class="hc-line"><i class="fas fa-phone"></i>${shEsc(c.phone || '—')}</div>
                                 <div class="hc-line"><i class="fas fa-life-ring"></i>Emergency: ${shEsc(c.emergency_contact || '—')}</div>
                             </div>
                         </div>
-                        <div class="hc-note">Show this QR at the hospital. The doctor scans it to see your medical history, allergies and last prescriptions.</div>
+                        <div class="hc-note">Show this QR at the hospital. The doctor scans it to see your medical history, allergies, prescriptions and lab reports.</div>
                     </div>
                     <div class="hc-card hc-back">
                         <div class="hc-qr hc-qr-big" id="hcQrBig"></div>
@@ -498,12 +503,71 @@ function hcRender(c, rx) {
                     </div>`).join('')}</div>`
                 : `<div class="ap-empty" style="padding: 30px 20px;"><span class="ap-empty-art"><i class="fas fa-file-prescription"></i></span><b>No prescriptions yet</b>They appear here after a doctor visit.</div>`}
             </div>
+            ${hcLabCard(c)}
         </div>
     </div>`;
 
     new QRCode(document.getElementById('hcQr'), { text: c.qr_text, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M });
     new QRCode(document.getElementById('hcQrBig'), { text: c.qr_text, width: 420, height: 420, correctLevel: QRCode.CorrectLevel.M });
     hcTilt();
+}
+
+// Lab reports on the health card: exactly what a doctor sees after scanning the QR
+const HC_FLAG = { H: '▲ High', L: '▼ Low', A: 'Abnormal' };
+
+function hcLabCard(c) {
+    const reports = hcLab.lab_reports || [], pending = hcLab.lab_pending || [];
+    return `
+    <div class="card">
+        <h4 class="hc-h"><i class="fas fa-flask-vial"></i>My Lab Reports<small>${reports.length}</small></h4>
+        <p class="hc-lab-note"><i class="fas fa-qrcode"></i>A doctor who scans your card sees these reports, with values outside the normal range highlighted.</p>
+        ${reports.length ? `<div class="rx-list">${reports.map((l, i) => `
+            <div class="rx-item hc-lab-item" style="--i: ${Math.min(i, 8)};">
+                <h5>${shEsc(l.tests.join(', '))}</h5>
+                <div class="rx-meta">
+                    <span><i class="far fa-calendar"></i>${shEsc((l.report_at || '').slice(0, 10))}</span>
+                    <span><i class="fas fa-hashtag"></i>${shEsc(l.booking_no)}</span>
+                    <span><i class="fas fa-user"></i>${shEsc(l.patient_name)}${l.other_person ? ' (family member)' : ''}</span>
+                </div>
+                ${l.flagged.length
+                    ? `<ul class="hc-lab-flags">${l.flagged.map(f => `<li><b>${shEsc(f.name)}</b> ${shEsc(f.value)} ${shEsc(f.unit)}
+                        <span class="hc-lab-flag">${HC_FLAG[f.flag] || ''}</span> <small>normal ${shEsc(f.ref || '—')}</small></li>`).join('')}</ul>`
+                    : '<div class="hc-lab-ok"><i class="fas fa-circle-check"></i>All values in the normal range</div>'}
+                <button type="button" class="ap-btn" onclick="hcLabReport(${+l.id})"><i class="fas fa-file-medical"></i>View full report</button>
+            </div>`).join('')}</div>`
+        : `<div class="ap-empty" style="padding: 30px 20px;"><span class="ap-empty-art"><i class="fas fa-flask-vial"></i></span><b>No lab reports yet</b>Reports from SmartHealth Lab appear here as soon as they are ready.</div>`}
+        ${pending.length ? `<div class="hc-lab-pending"><b><i class="fas fa-hourglass-half"></i>In progress</b>
+            ${pending.map(p => `<div>${shEsc(p.tests.join(', '))} <span>${shEsc(p.status)}</span></div>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function hcLabReport(id) {
+    const l = (hcLab.lab_reports || []).find(x => x.id === id);
+    if (!l || typeof lbReportHtml !== 'function') return;
+    document.getElementById('lbReportBox')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+        <div class="lb-report" id="lbReportBox" onclick="if (event.target === this) this.remove()">
+            <div class="lb-report-panel">
+                <div class="lb-report-bar">
+                    <b><i class="fas fa-file-medical"></i> Lab report ${shEsc(l.booking_no)}</b>
+                    <div><button type="button" class="ap-btn" onclick="hcLabPrint(${+id})"><i class="fas fa-print"></i>Print / Save PDF</button>
+                    <button type="button" class="ap-btn" onclick="document.getElementById('lbReportBox').remove()"><i class="fas fa-xmark"></i>Close</button></div>
+                </div>
+                <style>${LB_REPORT_CSS}</style>
+                <div class="lb-report-doc">${lbReportHtml(l, hcLab.lab)}</div>
+            </div>
+        </div>`);
+}
+
+function hcLabPrint(id) {
+    const l = (hcLab.lab_reports || []).find(x => x.id === id);
+    if (!l) return;
+    const w = window.open('', '_blank', 'width=900,height=1000');
+    if (!w) return shToast('Please allow pop-ups to print the report.', 'error');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lab report ${shEsc(l.booking_no)}</title>
+        <style>body { margin: 24px; } ${LB_REPORT_CSS} @page { margin: 14mm; }</style></head><body>${lbReportHtml(l, hcLab.lab)}</body></html>`);
+    w.document.close();
+    w.onload = () => w.print();
 }
 
 // Turns the card over: details on the front, a large QR on the back
@@ -569,7 +633,7 @@ function printHealthCard() {
             <h2>${shEsc(c.name)}</h2>
             <p>Blood Group: <b>${shEsc(c.blood || '—')}</b> &nbsp; Age: <b>${shEsc(c.age || '—')}</b></p>
             <p>Emergency Contact: <b>${shEsc(c.emergency_contact || '—')}</b></p>
-            <small>Scan at the hospital to open medical history.</small>
+            <small>Scan at the hospital to open medical history and lab reports.</small>
         </div></body></html>`);
     w.document.close();
     w.onload = () => w.print();

@@ -186,7 +186,23 @@
         .rx:hover { transform: translateX(4px); box-shadow: 0 8px 18px -12px rgba(99,102,241,.6); }
         .rx h5 { font-size: 14px; color: var(--ink-strong); }
         .rx pre { white-space: pre-wrap; font-family: inherit; margin-top: 4px; }
-        #reader { max-width: 420px; margin-bottom: 12px; border-radius: 14px; overflow: hidden; }
+        .scan-grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; align-items: start; }
+        @media (max-width: 860px) { .scan-grid { grid-template-columns: 1fr; } }
+        .scan-view { position: relative; width: 100%; max-width: 420px; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: #0f172a; }
+        .scan-view.on { aspect-ratio: auto; }
+        #reader { width: 100%; }
+        #reader video { display: block; }
+        .scan-idle { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #94a3b8; font-size: 14px; }
+        .scan-idle i { font-size: 34px; }
+        .scan-view.on .scan-idle { display: none; }
+        .scan-status { margin-top: 8px; font-size: 13px; color: var(--ink-soft, #64748b); min-height: 18px; }
+        .scan-status.ok { color: var(--green, #16a34a); font-weight: 600; }
+        .scan-select { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 10px; max-width: 220px; font: inherit; font-size: 13px; background: #fff; }
+        .scan-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 26px 16px; border: 2px dashed var(--border); border-radius: 14px; cursor: pointer; transition: border-color .2s, background .2s; }
+        .scan-drop i { font-size: 28px; color: var(--brand); }
+        .scan-drop span { font-size: 12.5px; color: var(--ink-soft, #64748b); }
+        .scan-drop:hover, .scan-drop.drag { border-color: var(--brand); background: rgba(37,99,235,.05); }
+        .scan-drop.busy { opacity: .6; pointer-events: none; }
 
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -198,6 +214,18 @@
         .lab-sec td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; }
         .lab-sec tr.flag td:first-child, .lab-sec tr.flag b { color: #b91c1c; }
         .lab-f { font-size: 11px; font-weight: 700; color: #b91c1c; }
+        .lab-rep[open] summary { margin-bottom: 4px; }
+        .lab-who { font-size: 12px; margin-top: 6px; }
+        .lab-who.other { color: var(--amber, #d97706); font-weight: 600; }
+        .lab-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .lab-pending { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; }
+        .lab-pending li { padding: 6px 0; border-top: 1px dashed #e2e8f0; }
+        .alert-box.labflag { border: 1px solid #fecaca; border-left: 4px solid #dc2626; background: #fef2f2; color: #7f1d1d; animation-delay: .16s; }
+        .alert-box.labflag ul { margin: 6px 0 0 18px; font-size: 13px; line-height: 1.7; }
+        .alert-box.labflag li b { display: inline; font-size: inherit; text-transform: none; letter-spacing: normal; }
+        .lab-modal { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,.55); display: flex; justify-content: center; align-items: flex-start; padding: 24px 12px; overflow-y: auto; }
+        .lab-modal-panel { background: #fff; border-radius: 14px; width: 100%; max-width: 880px; padding: 16px 20px 24px; }
+        .lab-modal-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; }
     </style>
 </head>
 <body>
@@ -277,16 +305,34 @@
         <div class="page" id="page-scan">
             <div class="panel">
                 <h3>Scan Smart Patient QR Card</h3>
-                <p class="muted" style="margin-bottom: 12px;">Point the camera at the patient's QR card to open their full medical history instantly.</p>
-                <div id="reader"></div>
-                <div class="toolbar">
-                    <button class="btn" id="scan-btn" onclick="toggleScanner()"><i class="fas fa-camera"></i> Start camera</button>
+                <p class="muted" style="margin-bottom: 12px;">Hold the patient's QR card in front of the camera, or upload a photo / screenshot of the card. Their full record (with lab reports) opens by itself.</p>
+                <div class="scan-grid">
+                    <div>
+                        <div class="scan-view" id="scan-view">
+                            <div id="reader"></div>
+                            <div class="scan-idle" id="scan-idle"><i class="fas fa-camera"></i><span>Camera is off</span></div>
+                        </div>
+                        <div class="scan-status" id="scan-status"></div>
+                        <div class="toolbar" style="margin-top: 10px;">
+                            <button class="btn" id="scan-btn" onclick="toggleScanner()"><i class="fas fa-camera"></i> Start camera</button>
+                            <select id="scan-camera" class="scan-select" style="display: none;" onchange="switchCamera(this.value)" aria-label="Camera"></select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="scan-drop" id="scan-drop" for="scan-file">
+                            <i class="fas fa-image"></i>
+                            <b>Upload QR image</b>
+                            <span>Photo or screenshot of the card · drag it here · or press Ctrl+V to paste</span>
+                            <input type="file" id="scan-file" accept="image/*" hidden onchange="scanImageFile(this.files[0]); this.value = '';">
+                        </label>
+                        <div id="reader-file" hidden></div>
+                        <div class="form-group" style="margin-top: 16px;">
+                            <label>Or type / paste the card code (works with a handheld scanner)</label>
+                            <input type="text" id="scan-code" placeholder="SHQR:…" autocomplete="off" onkeydown="if(event.key==='Enter') lookupCode(this.value)">
+                        </div>
+                        <button class="btn ghost" onclick="lookupCode(document.getElementById('scan-code').value)">Open record</button>
+                    </div>
                 </div>
-                <div class="form-group" style="max-width: 420px;">
-                    <label>Or type / paste the card code (works with a handheld scanner)</label>
-                    <input type="text" id="scan-code" placeholder="SHQR:…" onkeydown="if(event.key==='Enter') lookupCode(this.value)">
-                </div>
-                <button class="btn ghost" onclick="lookupCode(document.getElementById('scan-code').value)">Open record</button>
                 <div class="error" id="scan-error" style="margin-top: 10px;"></div>
             </div>
         </div>
@@ -298,10 +344,12 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="popups.js?v=1"></script>
+    <script src="lab-report.js?v=2"></script>
     <script>
         let currentPatient = null;   // { email, bookingId }
-        let scanner = null, scanBusy = false;
+        let scanner = null, scanState = 'off', scanBusy = false;
 
         function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
         function today() { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
@@ -389,6 +437,7 @@
             toggleSide(false); // phone: close the menu after choosing
             window.scrollTo(0, 0);
             if (name !== 'scan') stopScanner();
+            if (name === 'scan') startScanner(true);   // camera opens by itself on the scan page
             if (name === 'queue') loadQueue();
             if (name === 'all') loadAll();
         }
@@ -481,6 +530,7 @@
                     </div>
                     <div class="alert-box allergy"><b><i class="fas fa-triangle-exclamation"></i> Allergies</b>${esc(p.allergies || 'None recorded by the patient')}</div>
                     <div class="alert-box cond"><b>Past diseases / conditions</b>${esc(p.conditions || 'None recorded by the patient')}</div>
+                    ${labFlagBox(rec)}
                     <p class="muted">${esc(p.email)} ${p.address ? '· ' + esc(p.address) : ''}</p>
                 </div>
                 <div class="grid2">
@@ -495,19 +545,7 @@
                                     ${r.notes ? `<div class="muted">Advice: ${esc(r.notes)}</div>` : ''}
                                 </div>`).join('') : '<p class="muted">No previous prescriptions.</p>'}
                         </div>
-                        <div class="panel">
-                            <h3><i class="fas fa-flask-vial"></i> Lab reports (${(rec.lab_reports || []).length})</h3>
-                            ${(rec.lab_reports || []).length ? rec.lab_reports.map(l => `
-                                <details class="lab-rep">
-                                    <summary><b>${esc(l.tests.join(', '))}</b> <span class="muted">· ${esc((l.report_at || '').slice(0, 10))} · ${esc(l.booking_no)}</span>
-                                        ${l.abnormal ? `<span class="badge Rejected">${l.abnormal} flagged</span>` : '<span class="badge Completed">All normal</span>'}</summary>
-                                    ${l.sections.map(sec => `<div class="lab-sec"><b>${esc(sec.name)}</b>
-                                        <table><tbody>${sec.rows.filter(r => r.value !== '' && r.value !== null).map(r => `<tr class="${r.flag ? 'flag' : ''}"><td>${esc(r.name)}</td>
-                                            <td><b>${esc(r.value === '' ? '—' : r.value)}</b> ${esc(r.unit)} ${r.flag ? `<span class="lab-f">${{ H: '▲ High', L: '▼ Low', A: 'Abnormal' }[r.flag]}</span>` : ''}</td>
-                                            <td class="muted">${esc(r.ref)}</td></tr>`).join('')}</tbody></table></div>`).join('')}
-                                    ${l.remarks ? `<p class="muted">Remarks: ${esc(l.remarks)}</p>` : ''}
-                                </details>`).join('') : '<p class="muted">No lab reports yet.</p>'}
-                        </div>
+                        ${labPanel(rec)}
                         <div class="panel">
                             <h3>Visit history (${rec.visits.length})</h3>
                             <div class="table-wrap"><table>
@@ -532,6 +570,96 @@
                 </div>`;
         }
 
+        // ---------------- lab reports in the patient record
+        const LAB_FLAG_TEXT = { H: '▲ High', L: '▼ Low', A: 'Abnormal' };
+        let labRec = null;
+
+        // Lab reports in one shape, also when an older server sends `sections` and no `flagged` list
+        function labReportsOf(rec) {
+            return (rec.lab_reports || []).map(l => {
+                const report = l.report || l.sections || [];
+                const flagged = l.flagged || report.flatMap(s => (s.rows || []).filter(r => r.flag)
+                    .map(r => ({ test: s.name, name: r.name, value: r.value, unit: r.unit, flag: r.flag, ref: r.ref })));
+                return { ...l, report, flagged, tests: l.tests || report.map(s => s.name), abnormal: flagged.length,
+                         patient_name: l.patient_name || rec.patient.name, other_person: !!l.other_person };
+            });
+        }
+
+        // Out-of-range values of the card holder's newest report, shown next to the allergies
+        function labFlagBox(rec) {
+            const latest = labReportsOf(rec).find(l => !l.other_person);
+            if (!latest || !latest.flagged.length) return '';
+            return `<div class="alert-box labflag"><b><i class="fas fa-flask-vial"></i> Out of range in the latest lab report (${esc((latest.report_at || '').slice(0, 10))})</b>
+                <ul>${latest.flagged.map(f => `<li><b>${esc(f.name)}</b>: ${esc(f.value)} ${esc(f.unit)} <span class="lab-f">${LAB_FLAG_TEXT[f.flag] || ''}</span>
+                    <span class="muted">(normal ${esc(f.ref || '—')})</span></li>`).join('')}</ul></div>`;
+        }
+
+        function labPanel(rec) {
+            const reports = labReportsOf(rec), pending = rec.lab_pending || [];
+            labRec = { reports, lab: rec.lab };
+            const holder = rec.patient.name;
+            return `<div class="panel">
+                <h3><i class="fas fa-flask-vial"></i> Lab reports (${reports.length})</h3>
+                ${reports.length ? reports.map((l, i) => `
+                    <details class="lab-rep" ${i === 0 ? 'open' : ''}>
+                        <summary><b>${esc(l.tests.join(', '))}</b> <span class="muted">· ${esc((l.report_at || '').slice(0, 10))} · ${esc(l.booking_no)}</span>
+                            ${l.abnormal ? `<span class="badge Rejected">${l.abnormal} flagged</span>` : '<span class="badge Completed">All normal</span>'}</summary>
+                        <div class="lab-who ${l.other_person ? 'other' : 'muted'}">
+                            ${l.other_person ? `<i class="fas fa-user-group"></i> Booked for <b>${esc(l.patient_name)}</b>, not ${esc(holder)}` : `Patient: ${esc(l.patient_name)}`}
+                            · ${esc(l.age ?? '—')} yrs / ${esc(l.gender || '—')}${l.referred_by ? ` · Referred by ${esc(l.referred_by)}` : ''}</div>
+                        ${l.report.map(sec => {
+                            const rows = sec.rows.filter(r => r.value !== '' && r.value !== null);
+                            return `<div class="lab-sec"><b>${esc(sec.name)}</b>
+                            ${rows.length ? `<table><tbody>${rows.map(r => `<tr class="${r.flag ? 'flag' : ''}"><td>${esc(r.name)}</td>
+                                <td><b>${esc(r.value)}</b> ${esc(r.unit)} ${r.flag ? `<span class="lab-f">${LAB_FLAG_TEXT[r.flag] || ''}</span>` : ''}</td>
+                                <td class="muted">${esc(r.ref)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">Result awaited.</p>'}</div>`;
+                        }).join('')}
+                        ${l.remarks ? `<p class="muted">Remarks: ${esc(l.remarks)}</p>` : ''}
+                        <div class="lab-actions">
+                            <button class="btn sm ghost" onclick="openLabReport(${+l.id})"><i class="fas fa-file-medical"></i> Full report</button>
+                            <button class="btn sm ghost" onclick="printLabReport(${+l.id})"><i class="fas fa-print"></i> Print</button>
+                        </div>
+                    </details>`).join('') : '<p class="muted">No lab reports yet.</p>'}
+                ${pending.length ? `<h4 style="margin-top: 12px; font-size: 14px;"><i class="fas fa-hourglass-half"></i> Tests in progress (${pending.length})</h4>
+                    <ul class="lab-pending">${pending.map(p => `<li><b>${esc(p.tests.join(', '))}</b>
+                        <span class="badge Pending">${esc(p.status)}</span><br><span class="muted">${esc(p.booking_no)} · ${esc(p.slot_date || '')}
+                        · ${esc(p.patient_name)}</span></li>`).join('')}</ul>` : ''}
+            </div>`;
+        }
+
+        function labReportFor(id) {
+            return labRec && labRec.reports.find(l => l.id === id);
+        }
+
+        function openLabReport(id) {
+            const l = labReportFor(id);
+            if (!l) return;
+            document.getElementById('labModal')?.remove();
+            document.body.insertAdjacentHTML('beforeend', `
+                <div class="lab-modal" id="labModal" onclick="if (event.target === this) this.remove()">
+                    <div class="lab-modal-panel">
+                        <div class="lab-modal-bar">
+                            <b><i class="fas fa-file-medical"></i> Lab report ${esc(l.booking_no)}</b>
+                            <div><button class="btn sm ghost" onclick="printLabReport(${+id})"><i class="fas fa-print"></i> Print / Save PDF</button>
+                            <button class="btn sm ghost" onclick="document.getElementById('labModal').remove()"><i class="fas fa-xmark"></i> Close</button></div>
+                        </div>
+                        <style>${LB_REPORT_CSS}</style>
+                        ${lbReportHtml(l, labRec.lab)}
+                    </div>
+                </div>`);
+        }
+
+        function printLabReport(id) {
+            const l = labReportFor(id);
+            if (!l) return;
+            const w = window.open('', '_blank', 'width=900,height=1000');
+            if (!w) return shToast('Please allow pop-ups to print the report.', 'error');
+            w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lab report ${esc(l.booking_no)}</title>
+                <style>body { margin: 24px; } ${LB_REPORT_CSS} @page { margin: 14mm; }</style></head><body>${lbReportHtml(l, labRec.lab)}</body></html>`);
+            w.document.close();
+            w.onload = () => w.print();
+        }
+
         function savePrescription() {
             const err = document.getElementById('rx-error');
             api('prescribe', {}, {
@@ -551,43 +679,287 @@
             req.then(res => { if (res.status === 'success') renderRecord(res); });
         }
 
-        // ---------------- QR scanning
-        function lookupCode(code) {
+        // ---------------- QR scanning (camera, uploaded image, typed code)
+        const CAMERA_KEY = 'smartHealthDoctorCamera';
+        let fileReaderQr = null, lastBad = { code: '', at: 0 };
+
+        function newQrReader(elementId) {
+            const formats = window.Html5QrcodeSupportedFormats ? [Html5QrcodeSupportedFormats.QR_CODE] : undefined;
+            return new Html5Qrcode(elementId, { formatsToSupport: formats, verbose: false,
+                                                experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+        }
+
+        function scanError(msg) {
             const err = document.getElementById('scan-error');
+            err.textContent = msg || '';
+            err.style.display = msg ? 'block' : 'none';
+        }
+
+        function scanStatus(msg, ok) {
+            const s = document.getElementById('scan-status');
+            s.textContent = msg || '';
+            s.classList.toggle('ok', !!ok);
+        }
+
+        function lookupCode(code) {
             code = (code || '').trim();
-            if (!code || scanBusy) return;   // camera reports the same code many times a second
+            if (!code || scanBusy) return;   // the camera reports the same code many times a second
+            // the camera keeps seeing a wrong QR: say it once, not ten times a second
+            if (code === lastBad.code && Date.now() - lastBad.at < 4000) return;
+            const m = code.match(/^(?:SHQR:)?\s*([a-f0-9]{32})$/i);
+            if (!m) {
+                lastBad = { code, at: Date.now() };
+                scanStatus('');
+                return scanError('This QR code is not a SmartHealth patient card. Ask the patient to open My Health Card.');
+            }
+            code = 'SHQR:' + m[1].toLowerCase();
             scanBusy = true;
-            api('scan', { code }).finally(() => { scanBusy = false; }).then(res => {
-                if (res.status !== 'success') { err.textContent = res.message; err.style.display = 'block'; return; }
-                err.style.display = 'none';
-                stopScanner();
-                document.getElementById('scan-code').value = '';
-                currentPatient = { email: res.patient.email, bookingId: '', code };
-                renderRecord(res);
-                showPage('record');
-            });
+            scanStatus('Card found - opening the record…', true);
+            fetch('api/doctor?action=scan&code=' + encodeURIComponent(code))
+                .then(r => {
+                    if (r.status === 401) { showLogin(); throw new Error('login'); }
+                    return r.json().catch(() => { throw new Error('server'); });
+                })
+                .then(res => {
+                    if (res.status !== 'success') {
+                        lastBad = { code, at: Date.now() };
+                        scanStatus('');
+                        return scanError(res.message || 'Could not open this card.');
+                    }
+                    try {
+                        renderRecord(res);
+                    } catch (e) {
+                        console.error('Could not show the patient record', e);
+                        scanStatus('');
+                        return scanError('The card was read, but the record could not be shown. Restart the server (Ctrl+C, then npm start) and reload this page.');
+                    }
+                    scanError('');
+                    scanStatus('');
+                    if (navigator.vibrate) navigator.vibrate(80);
+                    stopScanner();
+                    document.getElementById('scan-code').value = '';
+                    currentPatient = { email: res.patient.email, bookingId: '', code };
+                    showPage('record');
+                })
+                .catch(e => {
+                    scanStatus('');
+                    if (e.message === 'login') return;
+                    scanError(e.message === 'server'
+                        ? 'The server had a problem opening this card. Please try again.'
+                        : 'Cannot reach the server. Check that it is running (npm start) and try again.');
+                })
+                .finally(() => { scanBusy = false; });
+        }
+
+        function cameraErrorText(e) {
+            const t = String(e && (e.name || e.message) ? `${e.name || ''} ${e.message || ''}` : e);
+            if (/NotAllowed|Permission/i.test(t)) return 'Camera permission is blocked. Click the camera icon in the address bar, allow the camera and press Start camera - or upload a photo of the card.';
+            if (/NotFound|Requested device not found|OverconstrainedError/i.test(t)) return 'No camera was found on this device. Upload a photo or screenshot of the QR card instead.';
+            if (/NotReadable|TrackStart|Could not start video/i.test(t)) return 'The camera is being used by another app or tab. Close it and press Start camera again.';
+            return 'Could not start the camera. Upload a photo of the card or type the code instead.';
+        }
+
+        function scanButton(state) {
+            const b = document.getElementById('scan-btn');
+            b.disabled = state === 'starting';
+            b.innerHTML = state === 'on' ? '<i class="fas fa-stop"></i> Stop camera'
+                        : state === 'starting' ? '<i class="fas fa-spinner fa-spin"></i> Starting camera…'
+                        : '<i class="fas fa-camera"></i> Start camera';
+            document.getElementById('scan-view').classList.toggle('on', state === 'on');
         }
 
         function toggleScanner() {
-            if (scanner) return stopScanner();
-            const err = document.getElementById('scan-error');
-            scanner = new Html5Qrcode('reader');
-            scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 240 }, text => lookupCode(text), () => {})
-                .then(() => { document.getElementById('scan-btn').innerHTML = '<i class="fas fa-stop"></i> Stop camera'; err.style.display = 'none'; })
-                .catch(e => {
-                    scanner = null;
-                    err.textContent = 'Could not start the camera (' + e + '). Allow camera access, or type the card code below.';
-                    err.style.display = 'block';
-                });
+            if (scanState === 'on') return stopScanner();
+            startScanner(false);
+        }
+
+        async function startScanner(auto) {
+            if (scanState !== 'off') return;
+            if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                return scanError('The camera works only on https:// or on http://127.0.0.1 / localhost. Upload a photo of the card instead.');
+            }
+            if (typeof Html5Qrcode === 'undefined') return scanError('The scanner could not load. Check the internet connection and reload the page.');
+            scanError('');
+            scanState = 'starting';
+            scanButton('starting');
+            scanStatus('Starting the camera…');
+            const config = {
+                fps: 12,
+                qrbox: (w, h) => { const s = Math.max(160, Math.floor(Math.min(w, h) * 0.72)); return { width: s, height: s }; }
+            };
+            const onScan = text => lookupCode(text);
+            let saved = '';
+            try { saved = localStorage.getItem(CAMERA_KEY) || ''; } catch (e) {}
+            scanner = newQrReader('reader');
+            try {
+                try {
+                    await scanner.start(saved || { facingMode: 'environment' }, config, onScan, () => {});
+                } catch (e) {
+                    if (!saved) throw e;
+                    try { localStorage.removeItem(CAMERA_KEY); } catch (x) {}   // the saved camera is gone: use the default one
+                    try { await scanner.clear(); } catch (x) {}
+                    scanner = newQrReader('reader');
+                    await scanner.start({ facingMode: 'environment' }, config, onScan, () => {});
+                }
+            } catch (e) {
+                scanner = null;
+                scanState = 'off';
+                scanButton('off');
+                scanStatus('');
+                return scanError(cameraErrorText(e));
+            }
+            const leftMeanwhile = scanState === 'stopping';   // the doctor left the scan page while it was starting
+            scanState = 'on';
+            scanButton('on');
+            scanStatus('Hold the QR code inside the square.');
+            if (leftMeanwhile) return stopScanner();
+            fillCameraList();
         }
 
         function stopScanner() {
-            if (!scanner) return;
+            if (scanState === 'starting') { scanState = 'stopping'; return Promise.resolve(); }
+            if (scanState !== 'on' || !scanner) return Promise.resolve();
             const s = scanner;
             scanner = null;
-            document.getElementById('scan-btn').innerHTML = '<i class="fas fa-camera"></i> Start camera';
-            s.stop().then(() => s.clear()).catch(() => {});
+            scanState = 'off';
+            scanButton('off');
+            scanStatus('');
+            document.getElementById('scan-camera').style.display = 'none';
+            return s.stop().then(() => s.clear()).catch(() => {});
         }
+
+        // A camera picker when the device has more than one (laptop + USB camera, front + back on a phone)
+        async function fillCameraList() {
+            const sel = document.getElementById('scan-camera');
+            let cams = [];
+            try { cams = await Html5Qrcode.getCameras(); } catch (e) {}
+            if (scanState !== 'on' || cams.length < 2) { sel.style.display = 'none'; return; }
+            let current = '';
+            try { current = scanner.getRunningTrackSettings().deviceId || ''; } catch (e) {}
+            sel.innerHTML = cams.map((c, i) => `<option value="${esc(c.id)}" ${c.id === current ? 'selected' : ''}>${esc(c.label || 'Camera ' + (i + 1))}</option>`).join('');
+            sel.style.display = '';
+        }
+
+        async function switchCamera(id) {
+            try { localStorage.setItem(CAMERA_KEY, id); } catch (e) {}
+            await stopScanner();
+            startScanner(false);
+        }
+
+        // ---- QR from an uploaded / dropped / pasted image
+        async function scanImageFile(file) {
+            if (!file) return;
+            if (!/^image\//.test(file.type)) return scanError('Please choose an image (photo or screenshot of the QR card).');
+            const drop = document.getElementById('scan-drop');
+            drop.classList.add('busy');
+            scanError('');
+            scanStatus('Reading the QR code from the image…');
+            try {
+                lookupCode(await decodeQrImage(file));
+            } catch (e) {
+                scanStatus('');
+                scanError('No QR code found in this image. Use a clear photo where the whole QR code is visible and not blurred.');
+            } finally {
+                drop.classList.remove('busy');
+            }
+        }
+
+        async function decodeQrImage(file) {
+            // 1. the browser's own detector, where there is one (Chrome on Android / Mac)
+            if ('BarcodeDetector' in window) {
+                try {
+                    const codes = await new BarcodeDetector({ formats: ['qr_code'] }).detect(await createImageBitmap(file));
+                    if (codes.length) return codes[0].rawValue;
+                } catch (e) {}
+            }
+            let img;
+            try { img = await createImageBitmap(file); } catch (e) { throw new Error('Not an image'); }
+            const sizes = qrSizes(img);
+            const pause = () => new Promise(r => setTimeout(r));   // keep the page responsive between tries
+            // 2. jsQR on small copies with a white border (a QR needs a white margin around it -
+            //    cropped screenshots have none; big phone photos read better smaller). Fast.
+            const jsqr = (size, invert) => {
+                const c = qrCanvas(img, size, 0);
+                const d = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+                const hit = jsQR(d.data, d.width, d.height, { inversionAttempts: invert ? 'attemptBoth' : 'dontInvert' });
+                return hit && hit.data;
+            };
+            if (typeof jsQR === 'function') {
+                for (const size of sizes.filter(s => s <= 800)) {
+                    const text = jsqr(size, false);
+                    if (text) return text;
+                    await pause();
+                }
+            }
+            // 3. the camera scanner's own reader on the image, then on copies that are slightly turned
+            //    (it can miss perfectly straight codes, and copes better with blurred / noisy photos)
+            fileReaderQr = fileReaderQr || newQrReader('reader-file');
+            try { return await fileReaderQr.scanFile(file, false); } catch (e) {}
+            for (const size of sizes) {
+                for (const turn of [0, 0.05, -0.05]) {
+                    const blob = await new Promise(r => qrCanvas(img, size, turn).toBlob(r, 'image/png'));
+                    try { return await fileReaderQr.scanFile(new File([blob], 'qr.png', { type: 'image/png' }), false); } catch (e) {}
+                }
+            }
+            // 4. last try: jsQR on the large copy, also looking for light-on-dark codes
+            if (typeof jsQR === 'function') {
+                for (const size of sizes.filter(s => s > 800).concat(sizes.slice(-1))) {
+                    await pause();
+                    const text = jsqr(size, true);
+                    if (text) return text;
+                }
+            }
+            throw new Error('No QR code found');
+        }
+
+        function qrSizes(img) {
+            const longest = Math.max(img.width, img.height);
+            const sizes = [1200, 800, 500].map(max => Math.min(max, longest));
+            if (longest < 400) sizes.push(longest * 2);   // very small screenshots read better enlarged
+            return [...new Set(sizes)].sort((a, b) => a - b);   // smallest (fastest) first
+        }
+
+        // The image scaled so its longest side is `size`, on white with a 20% margin, optionally turned a little
+        function qrCanvas(img, size, turn) {
+            const scale = size / Math.max(img.width, img.height);
+            const w = Math.round(img.width * scale), h = Math.round(img.height * scale), pad = Math.round(Math.max(w, h) * 0.2);
+            const c = document.createElement('canvas');
+            c.width = w + pad * 2;
+            c.height = h + pad * 2;
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.imageSmoothingEnabled = scale < 1;   // enlarged QR squares stay sharp
+            ctx.translate(c.width / 2, c.height / 2);
+            ctx.rotate(turn);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            return c;
+        }
+
+        (function setUpImageDrop() {
+            const drop = document.getElementById('scan-drop');
+            ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+            ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+            drop.addEventListener('drop', e => scanImageFile(e.dataTransfer.files[0]));
+            // Ctrl+V of a screenshot while the scan page is open
+            document.addEventListener('paste', e => {
+                if (!document.getElementById('page-scan').classList.contains('active')) return;
+                const item = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.type.startsWith('image/'));
+                if (item) { e.preventDefault(); scanImageFile(item.getAsFile()); }
+            });
+            // free the camera when the tab is hidden, and turn it back on when the doctor returns
+            let resumeCamera = false;
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    if (scanState === 'on' || scanState === 'starting') { resumeCamera = true; stopScanner(); }
+                    return;
+                }
+                if (scanState === 'stopping') { scanState = 'starting'; resumeCamera = false; return; }   // back before it finished starting
+                const onScanPage = document.getElementById('page-scan').classList.contains('active');
+                if (resumeCamera && onScanPage) startScanner(true);
+                resumeCamera = false;
+            });
+        })();
 
         // Already logged in (session cookie)? Go straight to the dashboard.
         fetch('api/doctor?action=me').then(r => r.ok ? startApp() : null);
