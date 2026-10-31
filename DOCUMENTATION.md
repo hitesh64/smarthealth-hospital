@@ -223,10 +223,10 @@ Dates are stored in UTC and sent to the browser as **Indian Standard Time** text
    ```
 
 5. Open:
-   * Patient site: http://localhost:5000
-   * Admin panel: http://localhost:5000/admin.html
-   * Doctor portal: http://localhost:5000/doctor.html
-   * Database check: http://localhost:5000/api/health
+   * Patient site: http://127.0.0.1:5000
+   * Admin panel: http://127.0.0.1:5000/admin.html
+   * Doctor portal: http://127.0.0.1:5000/doctor.html
+   * Database check: http://127.0.0.1:5000/api/health
 
 Set `FLASK_DEBUG=1` for the Flask debug server with auto-reload, and `PORT` to change the port.
 

@@ -13,7 +13,7 @@ Patient website, admin panel, doctor portal and ambulance driver page for a hosp
    ```
 
 3. Settings live in `.env` (copy `.env.example`; it holds passwords, never commit it).
-4. Start the site and open http://localhost:5000:
+4. Start the site and open http://127.0.0.1:5000:
 
    ```bash
    py -3.12 app.py
@@ -22,7 +22,7 @@ Patient website, admin panel, doctor portal and ambulance driver page for a hosp
    Or with Node.js installed: `npm start` (runs `server.js`, which starts `app.py`; works from any
    folder inside the project).
 
-   Admin panel: http://localhost:5000/admin.html · Doctor portal: http://localhost:5000/doctor.html
+   Admin panel: http://127.0.0.1:5000/admin.html · Doctor portal: http://127.0.0.1:5000/doctor.html
 
 ### Moving the old MySQL data
 
